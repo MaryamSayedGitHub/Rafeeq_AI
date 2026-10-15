@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state %}
+{% block title %}{{ file_name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back-link" href="{{ u(back) }}">{{ icon('arrow', 16, 'back') }}<span>{{ t('back') }}</span></a>
+    <h1>{{ t('source_page.title', file=file_name, page=page) }}</h1>
+  </div>
+</div>
+<section class="panel panel-pad source-view">
+  {% if res.ok %}
+    {% if res.data.image_url %}<img class="source-image" src="{{ res.data.image_url }}" alt="{{ t('source_page.image') }}">{% endif %}
+    {% if res.data.text %}<div class="source-text" dir="auto">{{ res.data.text }}</div>{% endif %}
+  {% else %}
+    {{ section_state(t, res) }}
+  {% endif %}
+</section>
+{% endblock %}

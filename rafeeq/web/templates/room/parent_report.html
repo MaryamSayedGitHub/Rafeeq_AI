@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state %}
+{% block title %}{{ t('parent.title') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head no-print">
+  <div>
+    <h1>{{ t('parent.title') }}</h1>
+    <p>{{ t('parent.intro') }}</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-light" href="{{ u('/rooms/' ~ room.room_id ~ '/students') }}">{{ icon('arrow', 16) }}<span>{{ t('parent.back') }}</span></a>
+    {% if report_res.ok %}
+    <button type="button" class="btn btn-secondary" onclick="window.print()">{{ icon('download', 16) }}<span>{{ t('parent.print') }}</span></button>
+    <button type="button" class="btn btn-primary" data-copy="{{ share_url }}">{{ icon('copy', 16) }}<span>{{ t('parent.copy_link') }}</span></button>
+    {% endif %}
+  </div>
+</div>
+{% if report_res.ok %}
+  <p class="inline-note no-print">{{ icon('info', 16) }}<span>{{ t('parent.link_note') }}</span></p>
+  <section class="panel panel-pad">{% with r = report_res.data %}{% include "partials/parent_report_body.html" %}{% endwith %}</section>
+{% else %}
+  <section class="panel panel-pad">{{ section_state(t, report_res) }}</section>
+{% endif %}
+{% endblock %}

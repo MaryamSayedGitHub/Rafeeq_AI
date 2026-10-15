@@ -1,0 +1,64 @@
+{
+  "decks": [
+    {
+      "deck_id": "d_41c8a0f2",
+      "title": "Cell division",
+      "course_name": "Biology 10",
+      "room_id": "r_139edde3",
+      "session_id": "s_demo01",
+      "theme_id": "preset:rafeeq",
+      "theme_name": "Rafeeq",
+      "theme": {
+        "name": "Rafeeq",
+        "font": "Segoe UI",
+        "colors": {
+          "ink": "#1B2540",
+          "ink_soft": "#4A5572",
+          "paper": "#F3F5F9",
+          "line": "#D5DAE5",
+          "blue": "#3A5BD9",
+          "blue_soft": "#E4EAFB",
+          "yellow": "#FFE066",
+          "green": "#1F7A4D",
+          "green_soft": "#DDF3E7",
+          "code_bg": "#12182B",
+          "code_text": "#E6EAF5"
+        }
+      },
+      "slides": [
+        {
+          "title": "What is mitosis?",
+          "bullets": [
+            "One cell becomes two identical cells",
+            "Happens in body cells"
+          ],
+          "notes": "Start with the picture.",
+          "diagram_steps": [
+            "Prophase",
+            "Metaphase",
+            "Anaphase",
+            "Telophase"
+          ],
+          "image_asset_id": "a_5d2e77b1",
+          "image_file_url": "/teacher/assets/a_5d2e77b1/file"
+        },
+        {
+          "title": "Why it matters",
+          "bullets": [
+            "Growth",
+            "Repair"
+          ],
+          "notes": "",
+          "diagram_steps": [],
+          "image_asset_id": "",
+          "image_file_url": null
+        }
+      ],
+      "slide_count": 2,
+      "pptx_asset_id": "a_9c0de412",
+      "exports": 1,
+      "created_at": "2026-10-12T21:00:00+00:00",
+      "updated_at": "2026-10-12T21:30:00+00:00"
+    }
+  ]
+}

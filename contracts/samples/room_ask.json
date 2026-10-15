@@ -1,0 +1,36 @@
+{
+  "question_id": 17,
+  "topic_id": "t_energy",
+  "level": 1,
+  "answer": "الميتوكوندريا تنتج الطاقة (ATP) للخلية عن طريق التنفس الخلوي.",
+  "citations": [
+    {
+      "file_name": "biology_ch3.pdf",
+      "page": 12
+    },
+    {
+      "file_name": "biology_ch3.pdf",
+      "page": 13
+    }
+  ],
+  "grounded": true,
+  "steps": [],
+  "offer_level2": false,
+  "material_source": "m2",
+  "study_file": null,
+  "quiz": [
+    {
+      "question": "أي عضية تنتج الطاقة في الخلية؟",
+      "options": [
+        "النواة",
+        "الميتوكوندريا",
+        "الريبوسوم",
+        "الجولجي"
+      ],
+      "answer": 1,
+      "explanation": "الميتوكوندريا تنتج ATP."
+    }
+  ],
+  "error": null,
+  "event_delivered": true
+}

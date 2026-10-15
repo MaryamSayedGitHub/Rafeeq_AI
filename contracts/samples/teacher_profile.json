@@ -1,0 +1,22 @@
+{
+  "teacher_id": "sara-ahmed",
+  "name": "سارة أحمد",
+  "title": "د.",
+  "subjects": [
+    "Python",
+    "تعلم الآلة"
+  ],
+  "bio": "أدرّس البرمجة لطلاب السنة الأولى.",
+  "defaults": {
+    "language": "Arabic",
+    "student_level": "beginner",
+    "programming_language": "Python",
+    "duration_minutes": 60
+  },
+  "display_name": "د. سارة أحمد",
+  "sessions_count": 2,
+  "remembered": [
+    "Usually teaches in Arabic, code in Python, for beginner students.",
+    "Earlier change request: أضف أمثلة من الحياة اليومية"
+  ]
+}

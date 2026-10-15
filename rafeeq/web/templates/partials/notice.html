@@ -1,0 +1,3 @@
+<div class="notice notice-{{ kind }} notice-inline" role="status" tabindex="-1" data-focus-heading>
+  {{ icon('alert' if kind in ('warning', 'error') else 'info', 18) }}<p>{{ text }}</p>
+</div>

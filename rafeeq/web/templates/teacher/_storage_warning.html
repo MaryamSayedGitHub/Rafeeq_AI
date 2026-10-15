@@ -1,0 +1,3 @@
+{% if not persistent %}
+<p class="t-warn">قاعدة البيانات غير متصلة: الملف الشخصي والجلسات محفوظة مؤقتًا وستضيع عند إعادة تشغيل التطبيق. شغّل Postgres (<code dir="ltr">docker compose up -d db</code>) ثم أعد تشغيل رفيق.</p>
+{% endif %}

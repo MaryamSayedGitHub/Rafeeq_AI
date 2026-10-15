@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% from "macros.html" import empty_state, section_state, project_bar with context %}
+{% block title %}{{ t('course.title') }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('course.title') }}</h1>
+    <p>{{ t('course.intro') }}</p>
+  </div>
+</div>
+{{ project_bar(proj, '/learning', keep) }}
+{% if pick %}<div class="inline-note">{{ icon('book', 16) }}<span>{{ t('course.picking_asset', title=pick.title) }}</span></div>{% endif %}
+{% if proj.session %}<div class="inline-note">{{ icon('sparkle', 16) }}<span>{{ t('course.picking_lesson', title=proj.session.topic) }}</span></div>{% endif %}
+
+<div class="studio-layout">
+  <section class="panel panel-pad" aria-labelledby="new-course-title">
+    <h2 class="panel-title" id="new-course-title">{{ t('course.new') }}</h2>
+    <form class="form-stack" method="post" action="{{ u('/learning/courses') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="field"><label for="c-title">{{ t('course.name') }}</label><input class="input" id="c-title" name="title" required minlength="2" maxlength="160" dir="auto"></div>
+      <div class="field"><label for="c-desc">{{ t('course.description') }} <span class="muted">({{ t('optional') }})</span></label><textarea class="input" id="c-desc" name="description" rows="3" maxlength="1000" dir="auto"></textarea></div>
+      <div class="field"><label for="c-room">{{ t('course.room') }}</label>
+        <select class="input" id="c-room" name="room_id"><option value="">{{ t('bar.no_room') }}</option>
+          {% for r in proj.rooms %}<option value="{{ r.room_id }}" {% if proj.room and proj.room.room_id == r.room_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}</select></div>
+      <button class="btn btn-primary" type="submit">{{ icon('plus', 18) }}<span>{{ t('course.create') }}</span></button>
+    </form>
+  </section>
+  <section class="panel panel-pad" aria-labelledby="courses-title">
+    <h2 class="panel-title" id="courses-title">{{ t('course.yours') }}</h2>
+    {% if not res.ok %}
+      {{ section_state(t, res) }}
+    {% elif not courses %}
+      {{ empty_state('book', t('course.empty'), t('course.empty_text')) }}
+    {% else %}
+    <ul class="session-list course-list">
+      {% for c in courses %}
+      <li>
+        <div>
+          <strong dir="auto">{{ c.title }}</strong>
+          <small>{{ t('course.lessons_count', n=c.lessons|length) }}
+            {% if c.published_room_id %} · <span class="badge badge-green">{{ t('course.published') }}</span>{% if c.unpublished_changes %} <span class="badge badge-amber">{{ t('course.changed') }}</span>{% endif %}{% else %} · <span class="badge badge-gray">{{ t('course.draft') }}</span>{% endif %}
+          </small>
+        </div>
+        <div class="row-actions">
+          {% if proj.session %}
+          <form method="post" action="{{ u('/learning/' ~ c.course_id ~ '/lessons') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="title" value="{{ proj.session.topic }}"><input type="hidden" name="session_id" value="{{ proj.session.session_id }}">
+            <button class="btn btn-secondary btn-sm" type="submit">{{ icon('plus', 16) }}<span>{{ t('course.add_this_lesson') }}</span></button>
+          </form>
+          {% endif %}
+          <a class="btn btn-primary btn-sm" href="{{ u('/learning/' ~ c.course_id, **keep) }}">{{ icon('pen', 16) }}<span>{{ t('deck.edit') }}</span></a>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

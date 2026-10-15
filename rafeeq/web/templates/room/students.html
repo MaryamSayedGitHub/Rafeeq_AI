@@ -1,0 +1,79 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state, meter, student_status, copy_code, empty_state %}
+{% block title %}{{ t('tab.students') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.students') }}</h1>
+    <p>{{ t('students.intro') }}</p>
+  </div>
+</div>
+
+<div class="two-col">
+  <section class="panel">
+    {% if not students_res.ok %}
+      <div class="panel-pad">{{ section_state(t, students_res) }}</div>
+    {% elif not students_res.data.students %}
+      {% call empty_state('users', t('students.empty.title'), t('students.empty.text')) %}
+        {% if join_code %}{{ copy_code(t, join_code) }}{% endif %}
+      {% endcall %}
+    {% else %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th scope="col">{{ t('students.col.name') }}</th>
+            <th scope="col">{{ t('students.col.questions') }}</th>
+            <th scope="col">{{ t('students.col.mastery') }}</th>
+            <th scope="col">{{ t('students.col.status') }}</th>
+            <th scope="col"><span class="sr-only">{{ t('parent.open') }}</span></th>
+          </tr></thead>
+          <tbody>
+            {% for s in students_res.data.students %}
+            <tr>
+              <td><span class="person"><span class="mini-avatar">{{ s.name[:1] }}</span>{{ s.name }}</span></td>
+              <td dir="ltr" class="num">{{ s.questions_this_week }}</td>
+              <td>{% if s.mastery is not none %}{{ meter(s.mastery, s.status) }}{% else %}<span class="muted">{{ t('students.no_data') }}</span>{% endif %}</td>
+              <td>{{ student_status(t, s.status) }}</td>
+              <td><a class="btn btn-light btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/students/' ~ s.user_id ~ '/report') }}">{{ icon('file', 14) }}<span>{{ t('parent.open') }}</span></a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </section>
+
+  <aside class="stack">
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('students.at_risk') }}</h2>
+      {% if report_res.ok %}
+        {% if at_risk %}
+          <ul class="risk-list">
+            {% for s in at_risk %}
+            <li><span class="mini-avatar tone-red">{{ s.name[:1] }}</span>
+              <div><strong>{{ s.name }}</strong>
+                <small>{{ t('students.at_risk.topics', topics=(s.topics | join('، ' if lang == 'ar' else ', '))) }}</small></div></li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">{{ t('students.at_risk.empty') }}</p>
+        {% endif %}
+      {% else %}
+        {{ section_state(t, report_res) }}
+      {% endif %}
+    </section>
+
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('assistant.title') }}</h2>
+      <p class="muted small">{{ t('assistant.intro') }}</p>
+      <form class="form-stack" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/students/draft') }}" hx-target="#draft-area" hx-indicator="#draft-indicator">
+        <label class="sr-only" for="draft-request">{{ t('assistant.title') }}</label>
+        <textarea class="input" id="draft-request" name="request" rows="3" required placeholder="{{ t('assistant.placeholder') }}"></textarea>
+        <button class="btn btn-primary" type="submit">{{ icon('pen', 16) }}<span>{{ t('assistant.submit') }}</span></button>
+      </form>
+      <div class="htmx-indicator inline-loading" id="draft-indicator"><span class="spinner"></span>{{ t('assistant.writing') }}</div>
+      <div id="draft-area"></div>
+    </section>
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+{% from "macros.html" import empty_state, section_state %}
+{% block title %}{{ t('tab.learn') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.learn') }}</h1>
+    <p>{{ t('learn.intro') }}</p>
+  </div>
+</div>
+{% if not res.ok %}
+  <section class="panel panel-pad">{{ section_state(t, res) }}</section>
+{% elif not courses %}
+  <section class="panel panel-pad">{{ empty_state('book', t('learn.empty'), t('learn.empty_text')) }}</section>
+{% else %}
+  {% for c in courses %}
+  <section class="panel panel-pad course-view">
+    <h2 class="panel-title" dir="auto">{{ c.title }}</h2>
+    {% if c.description %}<p class="muted" dir="auto">{{ c.description }}</p>{% endif %}
+    <ol class="lesson-list">
+      {% for l in c.lessons %}
+      <li>
+        <h3 dir="auto">{{ l.title }}</h3>
+        {% if l.notes %}<p dir="auto">{{ l.notes }}</p>{% endif %}
+        {% for a in l.assets %}
+        <div class="lesson-asset">
+          {% set src = u('/rooms/' ~ room.room_id ~ '/courses/' ~ c.course_id ~ '/assets/' ~ a.asset_id ~ '/file') %}
+          {% if a.kind in ('generated_video', 'video') and a.file_url %}
+            <video class="video-player" controls preload="metadata" src="{{ src }}"></video>
+          {% elif a.kind == 'source_video' and yt_embed(a.source_url, a.start_sec, a.end_sec) %}
+            <iframe class="video-embed" src="{{ yt_embed(a.source_url, a.start_sec, a.end_sec) }}" title="{{ a.title }}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+          {% elif a.kind == 'image' and a.file_url %}
+            <img class="asset-thumb" src="{{ src }}" alt="{{ a.title }}" loading="lazy">
+          {% elif a.kind == 'audio' and a.file_url %}
+            <audio class="audio-player" controls src="{{ src }}"></audio>
+          {% endif %}
+          <div class="asset-actions">
+            <span class="file-cell">{{ icon('file', 18) }}<span dir="auto">{{ a.title }}</span><span class="badge badge-gray">{{ t('asset.kind.' ~ a.kind) }}</span></span>
+            {% if a.kind == 'source_video' and a.source_url %}
+              <a class="btn btn-secondary btn-sm" href="{{ a.source_url }}" target="_blank" rel="noopener noreferrer">{{ icon('arrow', 16, 'flip') }}<span>{{ t('library.open_source') }}</span></a>
+            {% elif a.file_url %}
+              <a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/courses/' ~ c.course_id ~ '/assets/' ~ a.asset_id ~ '/file', download=1) }}">{{ icon('download', 16) }}<span>{{ t('library.download') }}</span></a>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}

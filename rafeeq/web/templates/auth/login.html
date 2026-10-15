@@ -1,0 +1,36 @@
+{% extends "auth/_shell.html" %}
+{% block title %}{{ t('login.title') }}{% endblock %}
+{% block card %}
+<h1>{{ t('login.heading') }}</h1>
+<p class="muted">{{ t('login.sub') }}</p>
+{% if error %}<div class="notice notice-error" role="alert">{{ icon('alert', 18) }}<p>{{ error }}</p></div>{% endif %}
+<form method="post" action="{{ u('/login') }}" class="form-stack">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <div class="field">
+    <label for="email">{{ t('field.email') }}</label>
+    <input class="input" id="email" name="email" type="email" dir="ltr" autocomplete="email" required value="{{ email or '' }}">
+  </div>
+  <div class="field">
+    <label for="password">{{ t('field.password') }}</label>
+    <input class="input" id="password" name="password" type="password" dir="ltr" autocomplete="current-password" required>
+  </div>
+  <button class="btn btn-primary btn-block" type="submit">{{ t('login.submit') }}</button>
+</form>
+<p class="auth-switch">{{ t('login.no_account') }} <a href="{{ u('/register') }}">{{ t('login.create') }}</a></p>
+
+{% if demo %}
+<div class="divider-label"><span>{{ t('login.demo') }}</span></div>
+<div class="demo-grid">
+  {% for role, title, note, initial in [('student', 'login.demo_student', 'login.demo_student_note', 'س'), ('teacher', 'login.demo_teacher', 'login.demo_teacher_note', 'م')] %}
+  <form method="post" action="{{ u('/login') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="demo" value="{{ role }}">
+    <button class="demo-account" type="submit">
+      <span class="avatar avatar-{{ role }}">{{ initial }}</span>
+      <span><strong>{{ t(title) }}</strong><small>{{ t(note) }}</small></span>
+    </button>
+  </form>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

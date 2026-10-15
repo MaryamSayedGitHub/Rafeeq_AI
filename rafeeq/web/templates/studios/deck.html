@@ -1,0 +1,114 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state, studio_links, project_bar with context %}
+{% block title %}{{ deck.title if deck else t('deck.title') }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back-link" href="{{ u('/presentations') }}">{{ icon('arrow', 16, 'back') }}<span>{{ t('deck.title') }}</span></a>
+    {% if deck %}<h1 dir="auto">{{ deck.title }}</h1><p>{{ t('deck.slides_count', n=deck.slide_count) }} · {{ deck.theme_name }}</p>{% endif %}
+  </div>
+  {% if deck %}
+  <form method="post" action="{{ u('/presentations/' ~ deck.deck_id ~ '/export') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button class="btn btn-primary" type="submit">{{ icon('download', 18) }}<span>{{ t('deck.export') }}</span></button>
+  </form>
+  {% endif %}
+</div>
+
+{% if not deck %}
+  <section class="panel panel-pad">{{ section_state(t, res) }}</section>
+{% else %}
+{% if pick %}
+<div class="inline-note">{{ icon('image', 16) }}<span>{{ t('deck.picking_image', title=pick.title) }}</span></div>
+{% endif %}
+{% if deck.pptx_asset_id %}
+<div class="inline-note">{{ icon('file', 18) }}<span>{{ t('deck.latest_file') }}</span>
+  <a class="btn btn-secondary btn-sm" href="{{ u('/assets/' ~ deck.pptx_asset_id ~ '/file', download=1) }}">{{ icon('download', 16) }}<span>{{ t('library.download') }}</span></a>
+  <a class="btn btn-secondary btn-sm" href="{{ u('/library', kind='pptx') }}">{{ t('deck.versions') }}</a></div>
+{% endif %}
+
+<form class="stack" id="deck-form" method="post" action="{{ u('/presentations/' ~ deck.deck_id) }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <section class="panel panel-pad">
+    <div class="form-grid">
+      <div class="field"><label for="d-title">{{ t('deck.deck_title') }}</label><input class="input" id="d-title" name="title" maxlength="200" dir="auto" value="{{ deck.title }}" required></div>
+      <div class="field"><label for="d-theme">{{ t('deck.theme') }}</label>
+        {% set current = chosen_theme or deck.theme_id %}
+        <select class="input" id="d-theme" name="theme_id">
+          <optgroup label="{{ t('theme.preset') }}">{% for th in presets %}<option value="{{ th.theme_id }}" {% if current == th.theme_id %}selected{% endif %}>{{ th.name }}</option>{% endfor %}</optgroup>
+          {% if custom %}<optgroup label="{{ t('theme.custom') }}">{% for th in custom %}<option value="{{ th.theme_id }}" {% if current == th.theme_id %}selected{% endif %}>{{ th.name }}</option>{% endfor %}</optgroup>{% endif %}
+        </select>
+        <p class="help">{{ t('deck.theme_help') }}</p></div>
+    </div>
+  </section>
+
+  {% for s in deck.slides %}
+  {% set i = loop.index0 %}
+  <section class="panel panel-pad slide-editor" id="slide-{{ i }}" style="--s-ink: {{ deck.theme.colors.ink }}; --s-paper: {{ deck.theme.colors.paper }}; --s-accent: {{ deck.theme.colors.blue }}; --s-soft: {{ deck.theme.colors.blue_soft }}">
+    <div class="slide-editor-grid">
+      <div class="slide-preview" aria-hidden="true">
+        <div class="slide-preview-bar"></div>
+        <strong dir="auto">{{ s.title }}</strong>
+        <ul>{% for b in s.bullets[:4] %}<li dir="auto">{{ b }}</li>{% endfor %}</ul>
+        {% if s.image_file_url %}<img src="{{ u('/assets/' ~ s.image_asset_id ~ '/file') }}" alt="">{% endif %}
+      </div>
+      <div class="form-stack">
+        <span class="slide-n">{{ t('session.slide_n', n=loop.index) }}</span>
+        <div class="field"><label for="st-{{ i }}">{{ t('deck.slide_title') }}</label><input class="input" id="st-{{ i }}" name="title_{{ i }}" maxlength="200" dir="auto" value="{{ s.title }}"></div>
+        <div class="field"><label for="sb-{{ i }}">{{ t('deck.bullets') }}</label><textarea class="input" id="sb-{{ i }}" name="bullets_{{ i }}" rows="4" dir="auto">{{ s.bullets|join('\n') }}</textarea><p class="help">{{ t('deck.bullets_help') }}</p></div>
+        <div class="field"><label for="sn-{{ i }}">{{ t('session.slide_notes') }}</label><textarea class="input" id="sn-{{ i }}" name="notes_{{ i }}" rows="2" dir="auto">{{ s.notes }}</textarea></div>
+      </div>
+    </div>
+  </section>
+  {% endfor %}
+  <div class="sticky-actions">
+    <button class="btn btn-primary" type="submit">{{ icon('check', 18) }}<span>{{ t('deck.save') }}</span></button>
+    <span class="muted small">{{ t('deck.save_first') }}</span>
+  </div>
+</form>
+
+<h2 class="section-title">{{ t('deck.visuals_title') }}</h2>
+<p class="muted">{{ t('deck.visuals_intro') }}</p>
+{% for s in deck.slides %}
+{% set i = loop.index0 %}
+<section class="panel panel-pad visual-panel" id="visual-{{ i }}">
+  <h3 class="small-title">{{ icon('image', 16) }}<span>{{ t('session.slide_n', n=loop.index) }} · <span dir="auto">{{ s.title }}</span></span></h3>
+  <div class="visual-grid">
+    <div>
+      {% if s.image_file_url %}
+        <img class="asset-thumb" src="{{ u('/assets/' ~ s.image_asset_id ~ '/file') }}" alt="{{ s.title }}">
+        <form method="post" action="{{ u('/presentations/' ~ deck.deck_id ~ '/slides/' ~ i ~ '/image') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="asset_id" value="">
+          <button class="btn btn-secondary btn-sm" type="submit">{{ icon('x_circle', 16) }}<span>{{ t('deck.remove_image') }}</span></button>
+        </form>
+      {% else %}<p class="muted small">{{ t('deck.no_image') }}</p>{% endif %}
+    </div>
+    <div class="form-stack">
+      <form class="form-stack" method="post" action="{{ u('/presentations/' ~ deck.deck_id ~ '/slides/' ~ i ~ '/image') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <div class="field"><label for="img-{{ i }}">{{ t('deck.library_image') }}</label>
+          <select class="input" id="img-{{ i }}" name="asset_id" {% if not images %}disabled{% endif %}>
+            {% if not images %}<option value="">{{ t('deck.no_library_images') }}</option>{% endif %}
+            {% for im in images %}<option value="{{ im.asset_id }}" {% if pick and pick.asset_id == im.asset_id %}selected{% elif s.image_asset_id == im.asset_id %}selected{% endif %}>{{ im.title }}</option>{% endfor %}
+          </select></div>
+        <button class="btn btn-secondary btn-sm" type="submit" {% if not images %}disabled{% endif %}>{{ icon('image', 16) }}<span>{{ t('deck.use_image') }}</span></button>
+      </form>
+      <form class="form-stack" hx-post="{{ u('/presentations/' ~ deck.deck_id ~ '/slides/' ~ i ~ '/visual') }}" hx-target="#visual-job-{{ i }}" hx-indicator="#visual-ind-{{ i }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <div class="field"><label for="vp-{{ i }}">{{ t('deck.visual_prompt') }} <span class="muted">({{ t('optional') }})</span></label>
+          <textarea class="input" id="vp-{{ i }}" name="prompt" rows="2" maxlength="600" dir="auto"></textarea><p class="help">{{ t('deck.visual_help') }}</p></div>
+        <button class="btn btn-secondary btn-sm" type="submit">{{ icon('sparkle', 16) }}<span>{{ t('deck.make_visual') }}</span> <span class="badge badge-amber">{{ t('video.paid') }}</span></button>
+        <div class="htmx-indicator inline-loading" id="visual-ind-{{ i }}"><span class="spinner"></span>{{ t('video.sending') }}</div>
+      </form>
+      <div id="visual-job-{{ i }}" aria-live="polite"></div>
+    </div>
+  </div>
+</section>
+{% endfor %}
+
+<section class="panel panel-pad">
+  <h2 class="panel-title">{{ t('studios.continue') }}</h2>
+  {{ studio_links({'room': deck.room_id, 'session': deck.session_id}) }}
+</section>
+{% endif %}
+{% endblock %}

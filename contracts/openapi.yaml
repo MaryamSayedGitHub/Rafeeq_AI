@@ -1,0 +1,3026 @@
+# Rafeeq API contract: DRAFT v0 for the contracts meeting.
+# Every field here is a proposal until the team agrees it. After the meeting,
+# M1 commits the agreed version and tags it day1-contracts.
+#
+# How to read this file:
+#   paths       = the routes (addresses) of the app, grouped by owner (tags)
+#   components  = the JSON shapes ("schemas"). Each one matches a file in contracts/samples/
+#   Every schema has additionalProperties: false, so a typo such as "pages" instead
+#   of "page" makes the contract test fail instead of passing silently.
+openapi: 3.1.0
+info:
+  title: Rafeeq API
+  version: 0.1.0-draft
+  description: Contract between the five parts of Rafeeq. Draft v0.
+servers:
+  - url: http://127.0.0.1:8000
+security:
+  - bearerAuth: []
+
+tags:
+  - name: M1 platform
+  - name: M2 knowledge
+  - name: M3 tutor
+  - name: M4 quiz and profile
+  - name: M5 teacher
+
+paths:
+  # ---------------------------------------------------------------- M1
+  /auth/login:
+    post:
+      tags: [M1 platform]
+      operationId: login
+      summary: Log in. Returns a token that every other call sends in the Authorization header.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Sample file samples/login.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Login" }
+        "401": { description: Wrong email or password }
+
+  /rooms:
+    get:
+      tags: [M1 platform]
+      operationId: listMyRooms
+      summary: The rooms of the logged-in user (course rooms and, if proposal 1 is accepted, My own study).
+      responses:
+        "200":
+          description: Sample file samples/my_rooms.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MyRooms" }
+    post:
+      tags: [M1 platform]
+      operationId: createRoom
+      summary: A teacher creates a room and gets its join code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRoomRequest" }
+      responses:
+        "200":
+          description: Sample file samples/create_room.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CreateRoomResult" }              
+
+  /rooms/{room_id}/files:
+    post:
+      tags: [M1 platform]
+      operationId: uploadFile
+      summary: Upload a course file into a room. M1 stores it, then asks M2 to index it.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+    get:
+      tags: [M1 platform]
+      operationId: listRoomFiles
+      summary: The room's files with their indexing status.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Sample file samples/room_files.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomFiles" }
+      responses:
+        "202":
+          description: Sample file samples/upload_file.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadFile" }
+  /rooms/{room_id}/files/{file_id}:
+    delete:
+      tags: [M1 platform]
+      operationId: deleteRoomFile
+      summary: Delete a file from a room (the room's teacher only). M1 removes the stored file, then asks M2 to drop it from the search index.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+        - { name: file_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Deleted. No body. }
+        "401": { description: Not logged in }
+        "403": { description: Only the room's teacher can delete its files }
+        "404": { description: Unknown room or file }
+  /auth/register:
+    post:
+      tags: [M1 platform]
+      operationId: register
+      summary: Create a student or teacher account. Returns the same thing as login.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "200":
+          description: Sample file samples/register.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Login" }
+        "400": { description: Missing name, invalid email, short password, or unknown join code }
+        "409": { description: An account with this email already exists }
+
+  /rooms/join:
+    post:
+      tags: [M1 platform]
+      operationId: joinRoom
+      summary: A student joins a room with the teacher's code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/JoinRoomRequest" }
+      responses:
+        "200":
+          description: Sample file samples/join_room.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Room" }
+
+  /rooms/{room_id}/join-code:
+    get:
+      tags: [M1 platform]
+      operationId: getJoinCode
+      summary: The room's current join code. Teacher of the room only.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Sample file samples/join_code.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JoinCode" }
+        "403": { description: Not the teacher of this room }
+
+  /rooms/{room_id}/students:
+    get:
+      tags: [M1 platform]
+      operationId: listRoomStudents
+      summary: Students in the room with activity and mastery. Teacher only.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Sample file samples/room_students.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomStudents" }
+  /snap:
+    post:
+      tags: [M1 platform]
+      operationId: snapAndAsk
+      summary: Read a photo. OpenCV cleans it, a vision-language model returns the text and what kind of photo it is.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo: { type: string, format: binary }
+                room_id: { type: string }
+      responses:
+        "200":
+          description: Sample file samples/snap_result.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SnapResult" }
+        "422": { description: The upload is not an image }
+        "503": { description: No image reader is configured (neither M3's OCR nor a vision model) }
+
+  /copilot/message:
+    post:
+      tags: [M1 platform]
+      operationId: copilotMessage
+      summary: The one entry point for the student. The Copilot picks a route and calls the right part.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CopilotRequest" }
+      responses:
+        "200":
+          description: Sample file samples/copilot_reply.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CopilotReply" }
+
+  # ---------------------------------------------------------------- M2
+  /search:
+    post:
+      tags: [M2 knowledge]
+      operationId: searchMaterial
+      summary: Find the pieces of course material that answer a question.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SearchRequest" }
+      responses:
+        "200":
+          description: Sample file samples/search_material.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchMaterial" }
+
+  /rooms/{room_id}/topics:
+    get:
+      tags: [M2 knowledge]
+      operationId: listTopics
+      summary: The topics found in the room's material. M4 and M5 use the topic ids.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Sample file samples/room_topics.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomTopics" }
+
+  /sources/page:
+    get:
+      tags: [M2 knowledge]
+      operationId: getSourcePage
+      summary: Open the exact page a citation points to.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+        - { name: file_name, in: query, required: true, schema: { type: string } }
+        - { name: page, in: query, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        "200":
+          description: Sample file samples/source_page.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourcePage" }
+
+  # ---------------------------------------------------------------- M3
+  /tutor/answer:
+    post:
+      tags: [M3 tutor]
+      operationId: tutorAnswer
+      summary: Answer a question using only the room's material. Called by the Copilot.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TutorRequest" }
+      responses:
+        "200":
+          description: Sample file samples/tutor_answer.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TutorAnswer" }
+
+  /tutor/check-work:
+    post:
+      tags: [M3 tutor]
+      operationId: checkWork
+      summary: Check a photo of the student's own work. Marks the first wrong step and gives a hint, not the solution.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CheckWorkRequest" }
+      responses:
+        "200":
+          description: Sample file samples/handwriting_check.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HandwritingCheck" }
+
+  # ---- M3 room routes: the Ask panel, handwriting check, question log, anonymous questions for M5 ----
+  /rooms/{room_id}/ask:
+    post:
+      tags: [M3 tutor]
+      operationId: roomAsk
+      summary: Ask a question. Level 1 = grounded answer with citations (or "not found" + offer_level2); Level 2 = web research + a saved study file.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RoomAskRequest" }
+      responses:
+        "200":
+          description: Sample files samples/room_ask.json (level 1) and samples/room_ask_level2.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomAskResponse" }
+
+  /rooms/{room_id}/vision/check-work:
+    post:
+      tags: [M3 tutor]
+      operationId: visionCheckWork
+      summary: Photo of handwriting -> OpenCV -> lines -> vision model -> course passages -> every line ok / check / error with one hint. Blurry photo -> retake_tip.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo: { type: string, format: binary }
+                language: { $ref: "#/components/schemas/Language" }
+                annotate: { type: boolean, description: "true = also return the page with coloured boxes as a base64 PNG" }
+      responses:
+        "200":
+          description: Sample file samples/vision_check.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VisionCheck" }
+
+  /rooms/{room_id}/questions:
+    get:
+      tags: [M3 tutor]
+      operationId: listMyQuestions
+      summary: The signed-in student's own question log in this room (newest first).
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 500, default: 50 } }
+      responses:
+        "200":
+          description: Sample file samples/logged_questions.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LoggedQuestions" }
+
+  /rooms/{room_id}/instructor/questions:
+    get:
+      tags: [M3 tutor]
+      operationId: instructorQuestions
+      summary: The room's questions with NO names or student ids (for M5). format=csv returns the same rows as CSV.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+        - { name: format, in: query, required: false, schema: { type: string, enum: [json, csv], default: json } }
+      responses:
+        "200":
+          description: Sample file samples/instructor_questions.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InstructorQuestions" }
+
+  /rooms/{room_id}/tutor/act:
+    post:
+      tags: [M3 tutor]
+      operationId: tutorAct
+      summary: The tutor agent under M1's Copilot. One entry for Ask (Level 1 / 2), quiz, summary, flashcards, study files, rewrite, hints and handwriting.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TutorActRequest" }
+      responses:
+        "200":
+          description: Sample file samples/tutor_act.json (result is a RoomAskResponse for ask and research)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TutorActResponse" }
+
+  /rooms/{room_id}/instructor/frequent:
+    get:
+      tags: [M3 tutor]
+      operationId: instructorFrequent
+      summary: What students ask again and again (same topic, nearly the same words), most asked first. No names, no ids. For the teacher's class insights.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+        - { name: min_count, in: query, required: false, schema: { type: integer, minimum: 2, maximum: 100, default: 2 } }
+      responses:
+        "200":
+          description: Sample file samples/frequent_questions.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/FrequentQuestions" }
+
+  /rooms/{room_id}/instructor/publish:
+    post:
+      tags: [M3 tutor]
+      operationId: instructorPublish
+      summary: Write the anonymous question file and POST it to M5 (M5_PUBLISH_URL) when that is set.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Result of the publish
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [count, file, posted, error]
+                properties:
+                  count: { type: integer, minimum: 0 }
+                  file: { type: string }
+                  posted: { type: boolean }
+                  error: { type: string }
+
+  # ---------------------------------------------------------------- M4
+  /quiz:
+    post:
+      tags: [M4 quiz and profile]
+      operationId: makeQuiz
+      summary: Make a quiz on one topic.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MakeQuizRequest" }
+      responses:
+        "200":
+          description: Sample file samples/make_quiz.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Quiz" }
+
+  /quiz/{quiz_id}/submit:
+    post:
+      tags: [M4 quiz and profile]
+      operationId: submitQuiz
+      summary: Send the student's answers. Returns the score and how mastery changed.
+      parameters:
+        - { name: quiz_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SubmitQuizRequest" }
+      responses:
+        "200":
+          description: Sample file samples/submit_quiz.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/QuizResult" }
+
+  /next-step:
+    get:
+      tags: [M4 quiz and profile]
+      operationId: nextStep
+      summary: What the student should do next. Feeds the Today card on the home page.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Sample file samples/next_step.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/NextStep" }
+
+  /profile/summary:
+    get:
+      tags: [M4 quiz and profile]
+      operationId: profileSummary
+      summary: PROPOSAL 2. Read-only summary of the student, so the tutor can adapt. Called by M3.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Sample file samples/student_summary.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StudentSummary" }
+
+  /events:
+    post:
+      tags: [M4 quiz and profile]
+      operationId: recordEvent
+      summary: PROPOSAL 3. M3 tells M4 that the student asked a question (later also "understood").
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/QuestionEvent" }
+      responses:
+        "204":
+          description: Recorded. No body. The request body is samples/question_event.json
+
+  # ---------------------------------------------------------------- M5
+  # Insights / report / assistant: placeholders until M5 confirms.
+  # Profile and sessions: the lecturer assistant (LangGraph), implemented in rafeeq/teacher.
+  # Until M1's login exists, teacher_id is sent explicitly; afterwards it comes from the token.
+  /teacher/profile:
+    get:
+      tags: [M5 teacher]
+      operationId: getTeacherProfile
+      summary: The teacher's profile, defaults for new sessions, and what the assistant remembers.
+      parameters:
+        - { $ref: "#/components/parameters/TeacherId" }
+      responses:
+        "200":
+          description: Sample file samples/teacher_profile.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeacherProfile" }
+        "404": { description: This teacher has no profile yet }
+    put:
+      tags: [M5 teacher]
+      operationId: saveTeacherProfile
+      summary: Create or update the profile. An empty teacher_id creates a new teacher.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TeacherProfileUpdate" }
+      responses:
+        "200":
+          description: The saved profile
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeacherProfile" }
+
+  /teacher/sessions:
+    get:
+      tags: [M5 teacher]
+      operationId: listTeacherSessions
+      summary: Finished (approved) sessions of a teacher, newest first, with their files.
+      parameters:
+        - { $ref: "#/components/parameters/TeacherId" }
+      responses:
+        "200":
+          description: Sample file samples/teacher_sessions.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeacherSessions" }
+    post:
+      tags: [M5 teacher]
+      operationId: startLecturerSession
+      summary: Prepare a teaching session. Runs the agents and returns when the draft waits for review (can take 1-2 minutes).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LecturerSessionRequest" }
+      responses:
+        "200":
+          description: Sample file samples/lecturer_session.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LecturerSession" }
+        "503": { description: No LLM provider is configured on the server }
+
+  /teacher/sessions/{session_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: getLecturerSession
+      parameters:
+        - { $ref: "#/components/parameters/SessionId" }
+      responses:
+        "200":
+          description: Same shape as samples/lecturer_session.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LecturerSession" }
+        "404": { description: Unknown session }
+
+  /teacher/sessions/{session_id}/decision:
+    post:
+      tags: [M5 teacher]
+      operationId: decideLecturerSession
+      summary: approve -> the files are created (status done). revise -> a new draft is built from the feedback.
+      parameters:
+        - { $ref: "#/components/parameters/SessionId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LecturerDecision" }
+      responses:
+        "200":
+          description: Same shape as samples/lecturer_session.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/LecturerSession" }
+        "404": { description: Unknown session }
+        "409": { description: Not waiting for a decision, or the revision limit is reached }
+
+  /teacher/sessions/{session_id}/files/{name}:
+    get:
+      tags: [M5 teacher]
+      operationId: downloadLecturerFile
+      summary: Download a generated file (.pptx, code file, quiz.json, quiz.md). Only names listed in the session.
+      parameters:
+        - { $ref: "#/components/parameters/SessionId" }
+        - { name: name, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream: {}
+        "404": { description: Unknown session or file }
+
+  /teacher/rooms/{room_id}/insights:
+    get:
+      tags: [M5 teacher]
+      operationId: teacherInsights
+      summary: What students ask about and which mistakes repeat.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Sample file samples/insights.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Insights" }
+
+  /teacher/rooms/{room_id}/report:
+    get:
+      tags: [M5 teacher]
+      operationId: teacherReport
+      summary: How the class is doing per topic, and who is at risk.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Sample file samples/class_report.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ClassReport" }
+
+  /teacher/rooms/{room_id}/students/{user_id}/parent-report:
+    get:
+      tags: [M5 teacher]
+      operationId: parentReport
+      summary: A student's weekly report for their parents (the room's teacher only), with a share link token.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+        - { name: user_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The report, plus share_token for a link that opens it without an account (14 days).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParentReport" }
+        "401": { description: Not logged in }
+        "403": { description: Not this room's teacher }
+        "404": { description: Unknown room or student }
+
+  /parent-report/{token}:
+    get:
+      tags: [M5 teacher]
+      operationId: sharedParentReport
+      summary: The report behind a share link. No account needed; the signed token names the room and student.
+      security: []
+      parameters:
+        - { name: token, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The report (without share_token)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ParentReport" }
+        "404": { description: Invalid or expired link }
+
+  /rooms/{room_id}/inbox:
+    get:
+      tags: [M5 teacher]
+      operationId: roomInbox
+      summary: Questions the tutor could not answer. The room's teacher sees all; a student sees only their own, with the teacher's answers.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: Open questions first, newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InboxQuestions" }
+        "401": { description: Not logged in }
+        "403": { description: Not a member of this room }
+
+  /rooms/{room_id}/inbox/{question_id}/answer:
+    post:
+      tags: [M5 teacher]
+      operationId: answerInboxQuestion
+      summary: The teacher answers. The answer is shown to the student and reused when the same question is asked again.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+        - { name: question_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/InboxAnswerRequest" }
+      responses:
+        "200":
+          description: The answered question
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InboxQuestion" }
+        "403": { description: Only the room's teacher }
+        "404": { description: Unknown question }
+
+  /rooms/{room_id}/inbox/{question_id}/draft:
+    post:
+      tags: [M5 teacher]
+      operationId: draftInboxAnswer
+      summary: An AI draft of the reply, from the room's material when it has something related. The teacher edits it before answering.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+        - { name: question_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The draft
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeacherAssistant" }
+        "503": { description: No model configured }
+
+  /teacher/assistant:
+    post:
+      tags: [M5 teacher]
+      operationId: teacherAssistant
+      summary: The teacher asks for something (a reply, a summary). The assistant drafts it and waits for approval.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TeacherAssistantRequest" }
+      responses:
+        "200":
+          description: Sample file samples/teacher_assistant.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TeacherAssistant" }
+
+  /teacher/videos/search:
+    get:
+      tags: [M5 teacher]
+      operationId: searchTeachingVideos
+      summary: YouTube videos for a question, each opening at the second whose transcript answers it.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 300 } }
+        - { name: top_k, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
+      responses:
+        "200":
+          description: Sample file samples/video_search.json. Empty results (not an error) when search or embeddings are unavailable.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VideoSearch" }
+
+  /teacher/videos/generate:
+    post:
+      tags: [M5 teacher]
+      operationId: generateVideo
+      summary: Start an animated video (paid, async). Without an image, the teacher's presenter image is the first frame if saved.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                teacher_id: { type: string }
+                prompt: { type: string, minLength: 3, maxLength: 800 }
+                duration: { type: integer, minimum: 2, maximum: 6, default: 5 }
+                audio: { type: boolean, default: false }
+                image: { type: string, format: binary }
+      responses:
+        "200":
+          description: Sample file samples/video_job.json. 503 when DASHSCOPE_API_KEY is not set, 502 when the provider refuses.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VideoJob" }
+
+  /teacher/videos/generate/{task_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: videoJobStatus
+      summary: Poll an animated video job until it is no longer PENDING or RUNNING.
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file samples/video_job_status.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VideoJobStatus" }
+
+  /teacher/avatar:
+    post:
+      tags: [M5 teacher]
+      operationId: saveTeacherAvatar
+      summary: Save the teacher's presenter image (first frame of their animated videos).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [teacher_id, image]
+              properties:
+                teacher_id: { type: string }
+                image: { type: string, format: binary }
+      responses:
+        "200":
+          description: Sample file samples/avatar_saved.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AvatarSaved" }
+
+  /teacher/avatar/{teacher_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: getTeacherAvatar
+      summary: The saved presenter image. 404 if the teacher has none.
+      parameters:
+        - { name: teacher_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The image file
+          content:
+            image/*:
+              schema: { type: string, format: binary }
+
+  /teacher/assets:
+    get:
+      tags: [M5 teacher]
+      operationId: listTeacherAssets
+      summary: The teacher's library (saved and generated files, videos, video moments). Needs the teacher's Bearer token.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: kind, in: query, schema: { type: string, enum: [pptx, code, quiz, image, source_video, generated_video, video, audio, theme] } }
+        - { name: room_id, in: query, schema: { type: string } }
+        - { name: session_id, in: query, schema: { type: string } }
+        - { name: status, in: query, schema: { type: string, enum: [pending, ready, failed] } }
+      responses:
+        "200":
+          description: Sample file samples/assets.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AssetList" }
+        "401": { description: Not signed in as a teacher }
+    post:
+      tags: [M5 teacher]
+      operationId: createTeacherAsset
+      summary: Save an external video moment (e.g. a YouTube result) to the library. Repeating the same request returns the same asset.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssetCreate" }
+      responses:
+        "201":
+          description: Sample file samples/asset.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "401": { description: Not signed in as a teacher }
+        "422": { description: Invalid input }
+
+  /teacher/assets/{asset_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: getTeacherAsset
+      summary: One asset of this teacher. Another teacher's asset is 404.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: asset_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file samples/asset.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "404": { description: No such asset }
+
+  /teacher/assets/{asset_id}/file:
+    get:
+      tags: [M5 teacher]
+      operationId: getTeacherAssetFile
+      summary: The stored file of an asset. 404 for external material or a file that is not ready.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: asset_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The file
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "404": { description: No such asset or no file }
+
+  /teacher/themes:
+    get:
+      tags: [M5 teacher]
+      operationId: listThemes
+      summary: "Built-in themes and the teacher's own (extracted) themes."
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ThemeList" }
+        "401": { description: Not signed in as a teacher }
+
+  /teacher/themes/extract:
+    post:
+      tags: [M5 teacher]
+      operationId: extractTheme
+      summary: "Read the colours and font of an uploaded .pptx/.potx and keep them as a library theme (same file twice = same theme)."
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { type: object, required: [file], properties: { file: { type: string, format: binary }, name: { type: string } } }
+      responses:
+        "201":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ThemeExtracted" }
+        "401": { description: Not signed in as a teacher }
+        "422": { description: Invalid input }
+
+  /teacher/decks:
+    get:
+      tags: [M5 teacher]
+      operationId: listDecks
+      summary: "The teacher's editable decks (one per approved lesson with slides)."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: room_id, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeckList" }
+        "401": { description: Not signed in as a teacher }
+    post:
+      tags: [M5 teacher]
+      operationId: createDeck
+      summary: "Open (or create) the deck of one of the teacher's finished lessons."
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeckCreate" }
+      responses:
+        "201":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deck" }
+        "401": { description: Not signed in as a teacher }
+        "404": { description: Not found (or not yours) }
+
+  /teacher/decks/{deck_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: getDeck
+      summary: "One deck. Another teacher's deck is 404."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: deck_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deck" }
+        "404": { description: Not found (or not yours) }
+    put:
+      tags: [M5 teacher]
+      operationId: updateDeck
+      summary: "Edit title, slides and theme. A slide picture must be one of the teacher's images; the theme must exist."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: deck_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DeckUpdate" }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deck" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+
+  /teacher/decks/{deck_id}/export:
+    post:
+      tags: [M5 teacher]
+      operationId: exportDeck
+      summary: "Build the .pptx with the deck's theme and pictures. Saved in the library as the next version; earlier files are kept."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: deck_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "404": { description: Not found (or not yours) }
+
+  /teacher/decks/{deck_id}/slides/{index}/image:
+    post:
+      tags: [M5 teacher]
+      operationId: setSlideImage
+      summary: "Attach a library image to a slide (empty asset_id removes it)."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: deck_id, in: path, required: true, schema: { type: string } }
+        - { name: index, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SlideImage" }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Deck" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+
+  /teacher/decks/{deck_id}/slides/{index}/visual:
+    post:
+      tags: [M5 teacher]
+      operationId: makeSlideVisual
+      summary: "The LLM writes an image prompt for the slide (or use yours), then the diffusion model draws it. Async: poll /teacher/visuals/{task_id}. Repeating the same request does not start a second job."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: deck_id, in: path, required: true, schema: { type: string } }
+        - { name: index, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VisualRequest" }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VisualJob" }
+        "404": { description: Not found (or not yours) }
+        "502": { description: The provider refused the job }
+        "503": { description: DASHSCOPE_API_KEY is not set }
+
+  /teacher/visuals/{task_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: getVisualStatus
+      summary: "Status of a slide picture job. When it succeeds the picture is saved in the library and attached to the slide."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: task_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VisualStatus" }
+        "404": { description: Not found (or not yours) }
+
+  /teacher/media/capabilities:
+    get:
+      tags: [M5 teacher]
+      operationId: getMediaCapabilities
+      summary: "What this server can do: image editing, ffmpeg video/audio editing, speech voices."
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MediaCapabilities" }
+        "401": { description: Not signed in as a teacher }
+
+  /teacher/media/upload:
+    post:
+      tags: [M5 teacher]
+      operationId: uploadMedia
+      summary: "Add an image, video or audio file to the library (the original is never changed). Same file twice = same asset."
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { type: object, required: [file], properties: { file: { type: string, format: binary }, title: { type: string }, room_id: { type: string } } }
+      responses:
+        "201":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "401": { description: Not signed in as a teacher }
+        "422": { description: Invalid input }
+        "413": { description: File too large }
+
+  /teacher/media/thumbnail:
+    post:
+      tags: [M5 teacher]
+      operationId: saveVideoCover
+      summary: "Keep the cover picture of a YouTube video as an image asset (only YouTube's image host is contacted; an exact frame is not available)."
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ThumbnailRequest" }
+      responses:
+        "201":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "422": { description: Invalid input }
+        "502": { description: The picture could not be downloaded }
+
+  /teacher/media/speech:
+    post:
+      tags: [M5 teacher]
+      operationId: makeSpeech
+      summary: "Read a text aloud (edge-tts) and keep it as an audio asset."
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SpeechRequest" }
+      responses:
+        "201":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "422": { description: Invalid input }
+        "503": { description: The voice service is not available }
+
+  /teacher/media/{asset_id}/edit:
+    post:
+      tags: [M5 teacher]
+      operationId: editMedia
+      summary: "Edit an image (crop, rotate, flip, resize, brightness, contrast, grayscale) or a video/audio (trim, mute, volume, extract audio; needs ffmpeg). The result is a NEW version; the original stays."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: asset_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MediaEdit" }
+      responses:
+        "201":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Asset" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+        "503": { description: ffmpeg is not installed }
+
+  /teacher/courses:
+    get:
+      tags: [M5 teacher]
+      operationId: listCourses
+      summary: "The teacher's courses (working copies)."
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CourseList" }
+        "401": { description: Not signed in as a teacher }
+    post:
+      tags: [M5 teacher]
+      operationId: createCourse
+      summary: "Create a course."
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CourseCreate" }
+      responses:
+        "201":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "422": { description: Invalid input }
+
+  /teacher/courses/{course_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: getCourse
+      summary: "One course with its lessons and library items."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+    put:
+      tags: [M5 teacher]
+      operationId: updateCourse
+      summary: "Change title, description or room."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CourseUpdate" }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+    delete:
+      tags: [M5 teacher]
+      operationId: deleteCourse
+      summary: "Delete the course (and unpublish it). Library items are untouched."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Done }
+        "404": { description: Not found (or not yours) }
+
+  /teacher/courses/{course_id}/lessons:
+    post:
+      tags: [M5 teacher]
+      operationId: addLesson
+      summary: "Add a lesson; asset_ids must be the teacher's own library items."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonCreate" }
+      responses:
+        "201":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+
+  /teacher/courses/{course_id}/lessons/{lesson_id}:
+    put:
+      tags: [M5 teacher]
+      operationId: updateLesson
+      summary: "Change a lesson's title or notes."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+        - { name: lesson_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonUpdate" }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+    delete:
+      tags: [M5 teacher]
+      operationId: removeLesson
+      summary: "Remove a lesson from the course."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+        - { name: lesson_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+
+  /teacher/courses/{course_id}/lessons/{lesson_id}/move:
+    post:
+      tags: [M5 teacher]
+      operationId: moveLesson
+      summary: "Move a lesson up or down."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+        - { name: lesson_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonMove" }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+
+  /teacher/courses/{course_id}/lessons/{lesson_id}/assets:
+    post:
+      tags: [M5 teacher]
+      operationId: setLessonAssets
+      summary: "Add and/or remove one library item of a lesson."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+        - { name: lesson_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LessonAsset" }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+
+  /teacher/courses/{course_id}/publish:
+    post:
+      tags: [M5 teacher]
+      operationId: publishCourse
+      summary: "Show a snapshot of the course to the students of one of the teacher's rooms. Publish again after editing."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PublishRequest" }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+        "422": { description: Invalid input }
+        "403": { description: Not the teacher of that room }
+
+  /teacher/courses/{course_id}/unpublish:
+    post:
+      tags: [M5 teacher]
+      operationId: unpublishCourse
+      summary: "Hide the course from students."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Course" }
+        "404": { description: Not found (or not yours) }
+
+  /rooms/{room_id}/courses:
+    get:
+      tags: [M1 platform]
+      operationId: listRoomCourses
+      summary: "The courses published to this room, for its students and its teacher."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: room_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomCourses" }
+        "401": { description: Not signed in }
+        "403": { description: Not in this room }
+
+  /rooms/{room_id}/courses/{course_id}/assets/{asset_id}/file:
+    get:
+      tags: [M1 platform]
+      operationId: getRoomCourseFile
+      summary: "A file of a published course. Only items in the published snapshot are served."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: room_id, in: path, required: true, schema: { type: string } }
+        - { name: course_id, in: path, required: true, schema: { type: string } }
+        - { name: asset_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200": { description: Done }
+        "403": { description: Not in this room }
+        "404": { description: Not in the published course }
+
+  /teacher/stories:
+    post:
+      tags: [M5 teacher]
+      operationId: createStory
+      summary: "Plan a multi-scene video (an LLM writes the scenes) and start it. Every scene is a paid video job that starts from the last frame of the one before; the scenes are joined with ffmpeg (optional narration). The same request returns the same story; a failed one restarts only with retry=true."
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StoryCreate" }
+      responses:
+        "201":
+          description: Sample file in samples/story.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoryStatus" }
+        "401": { description: Not signed in as a teacher }
+        "422": { description: Invalid input or the planner returned no usable story }
+        "503": { description: DASHSCOPE_API_KEY is not set, or ffmpeg is not installed }
+
+  /teacher/stories/{asset_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: getStory
+      summary: "Progress of a story. Each call also moves it one step forward, so the page only has to poll (every few seconds)."
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: asset_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: Sample file in samples/story.json
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StoryStatus" }
+        "401": { description: Not signed in as a teacher }
+        "404": { description: Not found (or not yours) }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  parameters:
+    TeacherId:
+      name: teacher_id
+      in: query
+      required: true
+      description: Until M1's login exists. Afterwards the teacher comes from the token.
+      schema: { type: string }
+    SessionId:
+      name: session_id
+      in: path
+      required: true
+      schema: { type: string }
+    RoomId:
+      name: room_id
+      in: path
+      required: true
+      schema: { type: string }
+
+  schemas:
+    # ---- shared small pieces ------------------------------------------------
+    Language:
+      type: string
+      enum: [ar, en]
+    Role:
+      type: string
+      enum: [student, teacher]
+
+    # ---- M1 ------------------------------------------------------------------
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    Login:
+      type: object
+      additionalProperties: false
+      required: [token, user_id, name, role]
+      properties:
+        token: { type: string }
+        user_id: { type: string }
+        name: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+
+    Room:
+      type: object
+      additionalProperties: false
+      required: [room_id, name, kind, files_ready]
+      properties:
+        room_id: { type: string }
+        name: { type: string }
+        kind:
+          type: string
+          enum: [course, personal]
+          description: "personal exists only if proposal 1 is accepted"
+        files_ready:
+          type: integer
+          minimum: 0
+          description: how many files in the room are indexed and ready
+
+    MyRooms:
+      type: object
+      additionalProperties: false
+      required: [rooms]
+      properties:
+        rooms:
+          type: array
+          items: { $ref: "#/components/schemas/Room" }
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, password, role]
+      properties:
+        name: { type: string }
+        email: { type: string }
+        password: { type: string }
+        role: { $ref: "#/components/schemas/Role" }
+        join_code: { type: string, description: "optional, students only" }
+
+    JoinRoomRequest:
+      type: object
+      additionalProperties: false
+      required: [code]
+      properties:
+        code: { type: string }
+
+    CreateRoomRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string }
+
+    CreateRoomResult:
+      type: object
+      additionalProperties: false
+      required: [room, join_code]
+      properties:
+        room: { $ref: "#/components/schemas/Room" }
+        join_code: { type: string }
+
+    JoinCode:
+      type: object
+      additionalProperties: false
+      required: [join_code]
+      properties:
+        join_code: { type: string, description: "e.g. K7Q-4MX" }
+
+    RoomFile:
+      type: object
+      additionalProperties: false
+      required: [file_id, name, source, status]
+      properties:
+        file_id: { type: string }
+        name: { type: string }
+        source: { type: string, enum: [teacher, assistant] }
+        status: { type: string, enum: [uploaded, indexing, ready, failed] }
+
+    RoomFiles:
+      type: object
+      additionalProperties: false
+      required: [files]
+      properties:
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/RoomFile" }
+
+    RoomStudent:
+      type: object
+      additionalProperties: false
+      required: [user_id, name, questions_this_week, mastery, status]
+      properties:
+        user_id: { type: string }
+        name: { type: string }
+        questions_this_week: { type: integer, minimum: 0 }
+        mastery:
+          type: [number, "null"]
+          minimum: 0
+          maximum: 1
+          description: from M4. null until M4 has data for this student
+        status:
+          type: [string, "null"]
+          enum: [on_track, watch, struggling, null]
+          description: from M4. null until M4 has data for this student
+
+    RoomStudents:
+      type: object
+      additionalProperties: false
+      required: [students]
+      properties:
+        students:
+          type: array
+          items: { $ref: "#/components/schemas/RoomStudent" }
+    UploadFile:
+      type: object
+      additionalProperties: false
+      required: [file_id, status]
+      properties:
+        file_id: { type: string }
+        status:
+          type: string
+          enum: [uploaded, indexing, ready, failed]
+
+    SnapResult:
+      type: object
+      additionalProperties: false
+      required: [file_id, type, language, text, confidence]
+      properties:
+        file_id: { type: string }
+        type:
+          type: string
+          enum: [student_work, material, diagram, other]
+        language: { $ref: "#/components/schemas/Language" }
+        text: { type: string }
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+
+    CopilotRequest:
+      type: object
+      additionalProperties: false
+      required: [room_id, text]
+      properties:
+        room_id: { type: string }
+        text: { type: string }
+        file_id:
+          type: string
+          description: set when the student attached a photo (the Snap result id)
+        mode:
+          type: string
+          enum: [auto, ask, check_work]
+          default: auto
+          description: >
+            auto = the Copilot decides. ask / check_work = the student chose explicitly
+            ("explain this photo" vs "check my solution"), so the Copilot skips classification.
+
+    CopilotReply:
+      type: object
+      additionalProperties: false
+      required: [route, reply, payload]
+      properties:
+        route:
+          type: string
+          enum: [ask, quiz, check_work, plan, clarify]
+        reply:
+          type: string
+          description: short text shown in the chat
+        payload:
+          type: object
+          description: >
+            Depends on route. ask = a TutorAnswer, quiz = {quiz_id, topic_id},
+            check_work = a HandwritingCheck, plan = {topic_id}, clarify = {}.
+            Extra flags the UI reads: sample (true when the result is a contract sample because
+            the owning service is not connected yet), unavailable, needs_photo,
+            escalated + question_id, verified_by_teacher.
+          additionalProperties: true
+
+    # ---- M2 ------------------------------------------------------------------
+    SearchRequest:
+      type: object
+      additionalProperties: false
+      required: [room_id, query]
+      properties:
+        room_id: { type: string }
+        query: { type: string }
+        top_k: { type: integer, minimum: 1, maximum: 20, default: 5 }
+
+    Chunk:
+      type: object
+      additionalProperties: false
+      required: [file_name, page, text, topic_id]
+      properties:
+        file_name: { type: string }
+        page: { type: integer, minimum: 1 }
+        text: { type: string }
+        topic_id: { type: string }
+
+    SearchMaterial:
+      type: object
+      additionalProperties: false
+      required: [chunks]
+      properties:
+        chunks:
+          type: array
+          items: { $ref: "#/components/schemas/Chunk" }
+
+    Topic:
+      type: object
+      additionalProperties: false
+      required: [topic_id, name]
+      properties:
+        topic_id: { type: string }
+        name: { type: string }
+
+    RoomTopics:
+      type: object
+      additionalProperties: false
+      required: [topics]
+      properties:
+        topics:
+          type: array
+          items: { $ref: "#/components/schemas/Topic" }
+
+    SourcePage:
+      type: object
+      additionalProperties: false
+      required: [file_name, page]
+      anyOf:
+        - required: [text]
+        - required: [image_url]
+      properties:
+        file_name: { type: string }
+        page: { type: integer, minimum: 1 }
+        text: { type: string }
+        image_url: { type: string }
+
+    # ---- M3 ------------------------------------------------------------------
+    TutorRequest:
+      type: object
+      additionalProperties: false
+      required: [room_id, question]
+      properties:
+        room_id: { type: string }
+        question: { type: string }
+        language: { $ref: "#/components/schemas/Language" }
+
+    Citation:
+      type: object
+      additionalProperties: false
+      required: [file_name, page]
+      properties:
+        file_name: { type: string }
+        page: { type: integer, minimum: 1 }
+
+    TutorAnswer:
+      type: object
+      additionalProperties: false
+      required: [answer, citations, grounded, steps]
+      properties:
+        answer: { type: string }
+        citations:
+          type: array
+          items: { $ref: "#/components/schemas/Citation" }
+        grounded:
+          type: boolean
+          description: false when the material did not contain the answer
+        steps:
+          type: array
+          items: { type: string }
+          description: PROPOSAL 4. Empty list means one full answer, no step-by-step mode.
+
+    CheckWorkRequest:
+      type: object
+      additionalProperties: false
+      required: [room_id, file_id, text]
+      properties:
+        room_id: { type: string }
+        file_id: { type: string }
+        text:
+          type: string
+          description: the text read from the photo (SnapResult.text)
+
+    Box:
+      type: object
+      additionalProperties: false
+      required: [x, y, width, height]
+      description: A rectangle on the photo. All four numbers are fractions of the image size, from 0 to 1.
+      properties:
+        x: { type: number, minimum: 0, maximum: 1 }
+        y: { type: number, minimum: 0, maximum: 1 }
+        width: { type: number, minimum: 0, maximum: 1 }
+        height: { type: number, minimum: 0, maximum: 1 }
+
+    WorkStep:
+      type: object
+      additionalProperties: false
+      required: [text, correct]
+      properties:
+        text: { type: string }
+        correct: { type: boolean }
+
+    HandwritingCheck:
+      type: object
+      additionalProperties: false
+      required: [boxes, steps, hint]
+      properties:
+        boxes:
+          type: array
+          description: marks the first wrong step. Empty if all steps are correct.
+          items: { $ref: "#/components/schemas/Box" }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/WorkStep" }
+        hint:
+          type: string
+          description: a nudge, never the full solution
+
+    # ---- M3 room routes ------------------------------------------------------
+    RoomAskRequest:
+      type: object
+      additionalProperties: false
+      required: [question]
+      properties:
+        question: { type: string, minLength: 1, maxLength: 2000 }
+        level: { type: integer, enum: [1, 2], default: 1 }
+        language: { $ref: "#/components/schemas/Language" }
+        pages: { type: integer, minimum: 1, maximum: 15, description: "Level 2: study file length in pages (default 1)" }
+        topic_id: { type: string, description: "search only the passages of this topic" }
+        parent_question_id: { type: integer, description: "Level 2 pressed after an ungrounded Level 1" }
+        quiz: { type: boolean, default: false, description: "also make the 3 MCQ; by default they are made only when the student asks for them" }
+
+    StudySource:
+      type: object
+      additionalProperties: false
+      required: [n, title, url]
+      properties:
+        n: { type: integer }
+        title: { type: string }
+        url: { type: string }
+
+    RoomStudyFile:
+      type: object
+      additionalProperties: false
+      required: [id, title, markdown, words, degraded, sources, queries]
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        markdown: { type: string, description: "overview, key ideas, worked example, sources" }
+        words: { type: integer }
+        degraded: { type: boolean, description: "true = built from search snippets because the AI model was not reachable" }
+        sources:
+          type: array
+          items: { $ref: "#/components/schemas/StudySource" }
+        queries:
+          type: array
+          items: { type: string }
+
+    AskQuizQuestion:
+      type: object
+      additionalProperties: false
+      required: [question, options, answer, explanation]
+      properties:
+        question: { type: string }
+        options:
+          type: array
+          items: { type: string }
+        answer: { type: integer, minimum: 0, description: "index of the right option" }
+        explanation: { type: string }
+
+    RoomAskResponse:
+      type: object
+      additionalProperties: false
+      required: [question_id, topic_id, level, answer, citations, grounded, steps, offer_level2, material_source, study_file, quiz, error, event_delivered]
+      properties:
+        question_id: { type: integer }
+        topic_id: { type: string }
+        level: { type: integer, enum: [1, 2] }
+        answer: { type: string }
+        citations:
+          type: array
+          items: { $ref: "#/components/schemas/Citation" }
+        grounded: { type: boolean }
+        steps:
+          type: array
+          items: { type: string }
+        offer_level2: { type: boolean, description: "true when Level 1 found nothing: offer the student Level 2" }
+        material_source: { type: string, enum: [m2, sample, none, given, web] }
+        citation_support: { type: string, enum: [supported, unsupported, unchecked, none], description: "do the cited M2 passages support the answer? unchecked = answer and passage are in different scripts" }
+        answer_flagged: { type: boolean, description: "the model's answer was withheld because its own citations did not support it" }
+        language: { $ref: "#/components/schemas/Language" }
+        web_sources:
+          type: array
+          items: { $ref: "#/components/schemas/StudySource" }
+          description: "a term answered from the web (no study file): the pages it came from"
+        study_file:
+          anyOf:
+            - { $ref: "#/components/schemas/RoomStudyFile" }
+            - { type: "null" }
+        quiz:
+          type: array
+          items: { $ref: "#/components/schemas/AskQuizQuestion" }
+        error:
+          type: [string, "null"]
+        event_delivered: { type: boolean, description: "the question event reached M4" }
+
+    VisionStep:
+      type: object
+      additionalProperties: false
+      required: [i, text, status, hint, box]
+      properties:
+        i: { type: integer, minimum: 1 }
+        text: { type: string }
+        status: { type: string, enum: [ok, check, error] }
+        hint: { type: string, description: "exactly one short hint for a step that is not ok, empty for ok; never the corrected line or the answer" }
+        box: { $ref: "#/components/schemas/Box" }
+
+    VisionCheck:
+      type: object
+      additionalProperties: false
+      required: [file_id, quality_ok, retake_tip, type, language, confidence, kind, complete, needs_help, hint, lines, citations, event_delivered, annotated_png_base64]
+      properties:
+        file_id: { type: string }
+        quality_ok: { type: boolean }
+        retake_tip: { type: string, description: "filled when the photo is blurry or dark" }
+        type: { type: string, enum: [student_work, material, diagram, other] }
+        language: { $ref: "#/components/schemas/Language" }
+        confidence: { type: number, minimum: 0, maximum: 1 }
+        kind: { type: string, enum: [question, math, code] }
+        complete: { type: boolean }
+        needs_help: { type: boolean }
+        hint: { type: string }
+        needs_clarification: { type: boolean, description: "a line could not be read reliably: it is marked check and the student is asked what it says; nothing was judged" }
+        clarification: { type: string }
+        lines:
+          type: array
+          items: { $ref: "#/components/schemas/VisionStep" }
+        citations:
+          type: array
+          items: { $ref: "#/components/schemas/Citation" }
+        event_delivered: { type: boolean }
+        annotated_png_base64:
+          type: [string, "null"]
+
+    LoggedQuestion:
+      type: object
+      additionalProperties: false
+      required: [question_id, ts, question, topic_id, level, grounded, study_file_id]
+      properties:
+        question_id: { type: integer }
+        ts: { type: string }
+        question: { type: string }
+        topic_id: { type: string }
+        level: { type: integer }
+        grounded: { type: boolean }
+        study_file_id:
+          type: [integer, "null"]
+
+    LoggedQuestions:
+      type: array
+      items: { $ref: "#/components/schemas/LoggedQuestion" }
+
+    InstructorQuestion:
+      type: object
+      additionalProperties: false
+      description: One question with no student name, id or e-mail (those are removed from the text too).
+      required: [public_id, date, topic_id, level, grounded, question]
+      properties:
+        public_id: { type: string, description: "random, not derived from the student" }
+        date: { type: string, description: "the day, YYYY-MM-DD" }
+        topic_id: { type: string }
+        level: { type: integer }
+        grounded: { type: boolean }
+        question: { type: string }
+
+    InstructorQuestions:
+      type: array
+      items: { $ref: "#/components/schemas/InstructorQuestion" }
+
+    TutorActRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        action: { type: string, enum: [auto, ask, explain, research, quiz, summary, cards, files, file, rewrite, help, hint, solution, check], default: auto }
+        text: { type: string, maxLength: 4000, default: "", description: "the question, the problem, the answer to rewrite, or the steps to check (by action)" }
+        language: { anyOf: [{ $ref: "#/components/schemas/Language" }, { type: "null" }] }
+        pages: { type: [integer, "null"], minimum: 1, maximum: 10, description: "research: study file length in pages" }
+        topic_id: { type: [string, "null"] }
+        parent_question_id: { type: [integer, "null"] }
+        study_file_id: { type: [integer, "null"], description: "quiz, summary, cards, file" }
+        mode: { type: [string, "null"], enum: [simpler, example, compare, null] }
+        other: { type: [string, "null"], maxLength: 200 }
+        question: { type: [string, "null"], maxLength: 2000 }
+        key: { type: [string, "null"], description: "hint, solution: the key returned by action help" }
+        n: { type: [integer, "null"], minimum: 1, maximum: 3 }
+        file_id: { type: [string, "null"] }
+        confidence: { type: [number, "null"], minimum: 0, maximum: 1 }
+        with_quiz: { type: [boolean, "null"], description: "ask: also make the 3 MCQ (default: no)" }
+        notify: { type: [boolean, "null"], description: "false: log the question but do not send the M4 event (the caller sends it)" }
+
+    TutorActResponse:
+      type: object
+      additionalProperties: false
+      required: [action, ok, error, result]
+      properties:
+        action: { type: string, description: "the tool that ran (auto resolves to ask or help)" }
+        ok: { type: boolean }
+        error: { type: [string, "null"] }
+        result: { type: object, additionalProperties: true, description: "shape depends on the action: RoomAskResponse for ask and research; files, file, quiz, summary, cards, rewrite, help, hint, solution, check" }
+
+    FrequentQuestion:
+      type: object
+      additionalProperties: false
+      required: [topic_id, question, count, students, unanswered, deeper]
+      properties:
+        topic_id: { type: string }
+        question: { type: string }
+        count: { type: integer, minimum: 1 }
+        students: { type: integer, minimum: 1, description: "how many different students asked it (a number, never who)" }
+        unanswered: { type: integer, minimum: 0, description: "times the course material had no answer" }
+        deeper: { type: integer, minimum: 0, description: "times a student went to Level 2" }
+
+    FrequentQuestions:
+      type: array
+      items: { $ref: "#/components/schemas/FrequentQuestion" }
+
+    # ---- M4 ------------------------------------------------------------------
+    MakeQuizRequest:
+      type: object
+      additionalProperties: false
+      required: [room_id, topic_id]
+      properties:
+        room_id: { type: string }
+        topic_id: { type: string }
+        count: { type: integer, minimum: 1, maximum: 20, default: 5 }
+
+    QuizQuestion:
+      type: object
+      additionalProperties: false
+      required: [text, choices, correct_answer, explanation]
+      properties:
+        text: { type: string }
+        choices:
+          type: array
+          minItems: 2
+          items: { type: string }
+        correct_answer:
+          type: string
+          description: must be one of choices
+        explanation: { type: string }
+
+    Quiz:
+      type: object
+      additionalProperties: false
+      required: [quiz_id, topic_id, questions]
+      properties:
+        quiz_id: { type: string }
+        topic_id: { type: string }
+        questions:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/QuizQuestion" }
+
+    SubmitQuizRequest:
+      type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items: { type: string }
+          description: one answer per question, in the same order as Quiz.questions
+
+    MasteryChange:
+      type: object
+      additionalProperties: false
+      required: [topic_id, change]
+      properties:
+        topic_id: { type: string }
+        change:
+          type: number
+          description: "positive = improved. Example 0.1 means +10 points"
+
+    QuizResult:
+      type: object
+      additionalProperties: false
+      required: [score, total, explanations, mastery_change]
+      properties:
+        score: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 1 }
+        explanations:
+          type: array
+          items: { type: string }
+          description: one per question, same order
+        mastery_change:
+          type: array
+          items: { $ref: "#/components/schemas/MasteryChange" }
+
+    NextStep:
+      type: object
+      additionalProperties: false
+      required: [topic_id, suggestion]
+      properties:
+        topic_id: { type: string }
+        suggestion: { type: string }
+
+    WeakTopic:
+      type: object
+      additionalProperties: false
+      required: [topic_id, score]
+      properties:
+        topic_id: { type: string }
+        score:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: mastery from 0 (none) to 1 (full). Low means weak.
+
+    StudentSummary:
+      type: object
+      additionalProperties: false
+      required: [weak_topics, level]
+      properties:
+        weak_topics:
+          type: array
+          items: { $ref: "#/components/schemas/WeakTopic" }
+        level:
+          type: string
+          enum: [beginner, intermediate, advanced]
+
+    QuestionEvent:
+      type: object
+      additionalProperties: false
+      required: [user_id, room_id, topic_id, kind, text, time]
+      properties:
+        user_id: { type: string }
+        room_id: { type: string }
+        topic_id: { type: string }
+        kind:
+          type: string
+          enum: [question, understood]
+          description: understood exists only if proposal 4 is accepted
+        text: { type: string }
+        time: { type: string, format: date-time }
+
+    # ---- M5 (placeholders, M5 confirms) --------------------------------------
+    TopQuestion:
+      type: object
+      additionalProperties: false
+      required: [topic_id, count, example]
+      properties:
+        topic_id: { type: string }
+        count: { type: integer, minimum: 0 }
+        example: { type: string }
+
+    CommonMistake:
+      type: object
+      additionalProperties: false
+      required: [topic_id, description]
+      properties:
+        topic_id: { type: string }
+        description: { type: string }
+
+    Insights:
+      type: object
+      additionalProperties: false
+      required: [top_questions, common_mistakes]
+      properties:
+        top_questions:
+          type: array
+          items: { $ref: "#/components/schemas/TopQuestion" }
+        common_mistakes:
+          type: array
+          items: { $ref: "#/components/schemas/CommonMistake" }
+
+    ClassTopic:
+      type: object
+      additionalProperties: false
+      required: [topic_id, mastery, status]
+      properties:
+        topic_id: { type: string }
+        mastery: { type: number, minimum: 0, maximum: 1 }
+        status:
+          type: string
+          enum: [on_track, watch, struggling]
+
+    StudentAtRisk:
+      type: object
+      additionalProperties: false
+      required: [user_id, name, topic_ids]
+      properties:
+        user_id: { type: string }
+        name: { type: string }
+        topic_ids:
+          type: array
+          items: { type: string }
+
+    ParentReport:
+      type: object
+      additionalProperties: false
+      required: [room_id, room_name, user_id, student_name, period, quizzes_taken, questions_answered,
+                 average_score, questions_asked, asked_about, topics, strengths, needs_work, improved, summary]
+      properties:
+        room_id: { type: string }
+        room_name: { type: string }
+        user_id: { type: string }
+        student_name: { type: string }
+        period:
+          type: object
+          additionalProperties: false
+          required: [from, to]
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+        quizzes_taken: { type: integer, minimum: 0 }
+        questions_answered: { type: integer, minimum: 0 }
+        average_score: { type: [number, "null"], minimum: 0, maximum: 1, description: "null when no quiz this week" }
+        questions_asked: { type: integer, minimum: 0 }
+        asked_about: { type: array, items: { type: string }, description: "topic names, most asked first" }
+        topics:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [topic_id, name, mastery, status, change]
+            properties:
+              topic_id: { type: string }
+              name: { type: string }
+              mastery: { type: number, minimum: 0, maximum: 1 }
+              status: { type: string, enum: [on_track, watch, struggling] }
+              change: { type: [number, "null"], description: "mastery now minus before this week; null if new" }
+        strengths: { type: array, items: { type: string } }
+        needs_work: { type: array, items: { type: string } }
+        improved: { type: array, items: { type: string } }
+        summary: { type: array, items: { type: string }, description: "Arabic sentences for parents, written from the numbers above" }
+        share_token: { type: string, description: "Only in the teacher's response" }
+
+    ClassReport:
+      type: object
+      additionalProperties: false
+      required: [topics, students_at_risk]
+      properties:
+        topics:
+          type: array
+          items: { $ref: "#/components/schemas/ClassTopic" }
+        students_at_risk:
+          type: array
+          items: { $ref: "#/components/schemas/StudentAtRisk" }
+
+    InboxQuestion:
+      type: object
+      additionalProperties: false
+      required: [question_id, user_id, student_name, text, time, status, answer, answered_at]
+      properties:
+        question_id: { type: string }
+        user_id: { type: [string, "null"] }
+        student_name: { type: string }
+        text: { type: string }
+        time: { type: string, format: date-time }
+        status: { type: string, enum: [open, answered] }
+        answer: { type: string, description: "empty while open" }
+        answered_at: { type: [string, "null"], format: date-time }
+
+    InboxQuestions:
+      type: object
+      additionalProperties: false
+      required: [questions]
+      properties:
+        questions:
+          type: array
+          items: { $ref: "#/components/schemas/InboxQuestion" }
+
+    InboxAnswerRequest:
+      type: object
+      additionalProperties: false
+      required: [answer]
+      properties:
+        answer: { type: string, minLength: 1, maxLength: 4000 }
+
+    TeacherAssistantRequest:
+      type: object
+      additionalProperties: false
+      required: [room_id, request]
+      properties:
+        room_id: { type: string }
+        request: { type: string }
+
+    TeacherAssistant:
+      type: object
+      additionalProperties: false
+      required: [draft_reply, status]
+      properties:
+        draft_reply: { type: string }
+        status:
+          type: string
+          enum: [waiting_for_approval, approved, sent]
+
+    # ------------------------------------------------- M5: profile + lecturer assistant
+    TeacherDefaults:
+      type: object
+      additionalProperties: false
+      required: [language, student_level, programming_language, duration_minutes]
+      properties:
+        language: { type: string, description: "Language the session is taught in, e.g. Arabic" }
+        student_level: { type: string, enum: [beginner, intermediate, advanced] }
+        programming_language: { type: string }
+        duration_minutes: { type: integer, minimum: 15, maximum: 240 }
+
+    TeacherProfileUpdate:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        teacher_id: { type: string, description: "Empty = new teacher (an id is made from the name)" }
+        name: { type: string, minLength: 2 }
+        title: { type: string, description: "e.g. د. or Eng." }
+        subjects:
+          type: array
+          items: { type: string }
+        bio: { type: string }
+        avatar_filename: { type: string, description: "Saved presenter image for animated videos; empty = none. Served at /teacher/avatar/{teacher_id}" }
+        defaults: { $ref: "#/components/schemas/TeacherDefaults" }
+
+    TeacherProfile:
+      type: object
+      additionalProperties: false
+      required: [teacher_id, name, title, subjects, bio, defaults, display_name, sessions_count, remembered]
+      properties:
+        teacher_id: { type: string }
+        name: { type: string }
+        title: { type: string }
+        subjects:
+          type: array
+          items: { type: string }
+        bio: { type: string }
+        avatar_filename: { type: string, description: "Saved presenter image for animated videos; empty = none. Served at /teacher/avatar/{teacher_id}" }
+        defaults: { $ref: "#/components/schemas/TeacherDefaults" }
+        display_name: { type: string, description: "title + name, printed on every generated slide" }
+        sessions_count: { type: integer, minimum: 0 }
+        remembered:
+          type: array
+          description: What the assistant learned from approved sessions and change requests, shown to the teacher
+          items: { type: string }
+
+    VideoMoment:
+      type: object
+      additionalProperties: false
+      required: [video_id, title, channel, thumbnail, start_sec, end_sec, open_at, text, score, url]
+      properties:
+        video_id: { type: string }
+        title: { type: string }
+        channel: { type: string }
+        thumbnail: { type: string }
+        start_sec: { type: number, minimum: 0 }
+        end_sec: { type: number, minimum: 0 }
+        open_at: { type: string, description: "mm:ss of start_sec" }
+        text: { type: string, description: "The transcript excerpt that matched" }
+        score: { type: number, description: "cosine similarity, higher = closer" }
+        url: { type: string, description: "YouTube link that opens at start_sec" }
+
+    VideoSearch:
+      type: object
+      additionalProperties: false
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/VideoMoment" }
+
+    VideoJob:
+      type: object
+      additionalProperties: false
+      required: [task_id, model, used_avatar]
+      properties:
+        task_id: { type: string }
+        model: { type: string }
+        used_avatar: { type: boolean, description: "true if the saved presenter image was the first frame" }
+        asset_id: { type: string, description: "Library record of this job; only with a teacher token. A repeat of the same request returns the same job." }
+
+    VideoJobStatus:
+      type: object
+      additionalProperties: false
+      required: [status, video_url, error]
+      properties:
+        status: { type: string, enum: [PENDING, RUNNING, SUCCEEDED, FAILED, ERROR, UNKNOWN, CANCELED] }
+        video_url: { type: [string, "null"], description: "only when SUCCEEDED; valid for 24 hours" }
+        error: { type: [string, "null"] }
+        asset_id: { type: string, description: "Library record of this job; only with a teacher token" }
+        file_url: { type: [string, "null"], description: "Set once the clip is saved on our server; it does not expire like video_url" }
+
+    AvatarSaved:
+      type: object
+      additionalProperties: false
+      required: [avatar_filename]
+      properties:
+        avatar_filename: { type: string }
+
+    SessionFile:
+      type: object
+      additionalProperties: false
+      required: [name, url]
+      properties:
+        name: { type: string }
+        url: { type: string }
+
+    PastSession:
+      type: object
+      additionalProperties: false
+      required: [session_id, topic, course_name, room_id, created_at, files]
+      properties:
+        session_id: { type: string }
+        topic: { type: string }
+        course_name: { type: string }
+        room_id: { type: string, description: "Empty if the session is not linked to a room" }
+        created_at: { type: string, description: "ISO date-time, empty for very old sessions" }
+        files:
+          type: array
+          items: { $ref: "#/components/schemas/SessionFile" }
+
+    TeacherSessions:
+      type: object
+      additionalProperties: false
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items: { $ref: "#/components/schemas/PastSession" }
+
+    LecturerSessionRequest:
+      type: object
+      additionalProperties: false
+      required: [lecturer_id, topic, needs]
+      properties:
+        lecturer_id: { type: string, minLength: 1, description: "= teacher_id" }
+        lecturer_name: { type: string, description: "Printed on the slides. Empty = lecturer_id" }
+        room_id: { type: string }
+        topic: { type: string, minLength: 2 }
+        course_name: { type: string }
+        student_level: { type: string, enum: [beginner, intermediate, advanced] }
+        duration_minutes: { type: integer, minimum: 15, maximum: 240 }
+        language: { type: string }
+        programming_language: { type: string }
+        needs:
+          type: array
+          minItems: 1
+          items: { type: string, enum: [slides, code, quiz] }
+        num_quiz_questions: { type: integer, minimum: 1, maximum: 20 }
+        learning_objectives:
+          type: array
+          items: { type: string }
+        notes: { type: string }
+
+    LecturerDecision:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [approve, revise] }
+        feedback: { type: string, description: "Required (not empty) when decision is revise" }
+
+    DraftSlide:
+      type: object
+      additionalProperties: false
+      required: [title, bullets, notes, diagram_steps]
+      properties:
+        title: { type: string }
+        bullets:
+          type: array
+          items: { type: string }
+        notes: { type: string, description: Speaker notes }
+        diagram_steps:
+          type: array
+          description: Optional flow drawn next to the bullets. Empty = no diagram
+          items: { type: string }
+
+    DraftCodeExample:
+      type: object
+      additionalProperties: false
+      required: [title, code, explanation, verified, fix_attempts, output]
+      properties:
+        title: { type: string }
+        code: { type: string }
+        explanation: { type: string }
+        verified:
+          type: [boolean, "null"]
+          description: true = it ran, false = still fails after fixes, null = not run (not Python)
+        fix_attempts: { type: integer, minimum: 0 }
+        output: { type: string, description: What the code printed }
+
+    DraftQuizQuestion:
+      type: object
+      additionalProperties: false
+      required: [question, options, answer_index, explanation]
+      properties:
+        question: { type: string }
+        options:
+          type: array
+          minItems: 4
+          maxItems: 4
+          items: { type: string }
+        answer_index: { type: integer, minimum: 0, maximum: 3 }
+        explanation: { type: string }
+
+    LecturerDraft:
+      type: object
+      additionalProperties: false
+      required: [topic, course_name, language, outline, slides, code_examples, quiz]
+      properties:
+        topic: { type: string }
+        course_name: { type: string }
+        language: { type: string }
+        outline:
+          type: array
+          items: { type: string }
+        slides:
+          type: array
+          items: { $ref: "#/components/schemas/DraftSlide" }
+        code_examples:
+          type: array
+          items: { $ref: "#/components/schemas/DraftCodeExample" }
+        quiz:
+          type: array
+          items: { $ref: "#/components/schemas/DraftQuizQuestion" }
+
+    LecturerSession:
+      type: object
+      additionalProperties: false
+      required: [session_id, room_id, topic, status, selected_agents, reasoning, memory, draft,
+                 revision_count, revisions_left, files]
+      properties:
+        session_id: { type: string }
+        room_id: { type: string }
+        topic: { type: string }
+        status:
+          type: string
+          enum: [awaiting_approval, done, incomplete]
+        selected_agents:
+          type: array
+          items: { type: string, enum: [research_agent, slides_agent, code_agent, quiz_agent] }
+        reasoning: { type: string, description: Why the orchestrator chose these agents }
+        memory:
+          type: array
+          description: What the assistant remembered about the teacher for this session
+          items: { type: string }
+        draft:
+          description: Empty object only if the session stopped before a draft existed (status incomplete)
+          anyOf:
+            - { $ref: "#/components/schemas/LecturerDraft" }
+            - { type: object, maxProperties: 0 }
+        revision_count: { type: integer, minimum: 0 }
+        revisions_left: { type: integer, minimum: 0 }
+        files:
+          type: array
+          description: Filled when status is done
+          items: { $ref: "#/components/schemas/SessionFile" }
+
+    Asset:
+      type: object
+      additionalProperties: false
+      required: [asset_id, kind, title, origin, status, error, source_url, start_sec, end_sec, provider, model, settings,
+                 room_id, session_id, slide_index, parent_asset_id, version, file_url, created_at, updated_at]
+      properties:
+        asset_id: { type: string }
+        kind: { type: string, enum: [pptx, code, quiz, image, source_video, generated_video, video, audio, theme] }
+        title: { type: string }
+        origin: { type: string, enum: [upload, external, edited, ai_generated], description: "Where it came from: provenance" }
+        status: { type: string, enum: [pending, ready, failed] }
+        error: { type: string, description: "Provider message when status is failed" }
+        source_url: { type: string, description: "External material (e.g. YouTube); empty otherwise" }
+        start_sec: { type: [number, "null"] }
+        end_sec: { type: [number, "null"] }
+        provider: { type: string, description: "AI provider for generated assets, e.g. qwencloud" }
+        model: { type: string }
+        settings: { type: object, description: "Generation settings (prompt, duration, audio ...)" }
+        room_id: { type: string }
+        session_id: { type: string }
+        slide_index: { type: [integer, "null"] }
+        parent_asset_id: { type: string, description: "Set on edited versions; the original is kept" }
+        version: { type: integer, minimum: 1 }
+        file_url: { type: [string, "null"], description: "Download route; null when there is no stored file" }
+        created_at: { type: string }
+        updated_at: { type: string }
+
+    AssetList:
+      type: object
+      additionalProperties: false
+      required: [assets]
+      properties:
+        assets:
+          type: array
+          items: { $ref: "#/components/schemas/Asset" }
+
+    AssetCreate:
+      type: object
+      additionalProperties: false
+      required: [title, source_url]
+      properties:
+        kind: { type: string, enum: [source_video], default: source_video }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        source_url: { type: string, pattern: "^https?://" }
+        start_sec: { type: [number, "null"], minimum: 0 }
+        end_sec: { type: [number, "null"], minimum: 0 }
+        room_id: { type: string }
+        session_id: { type: string }
+        slide_index: { type: [integer, "null"], minimum: 0 }
+
+    # ---- M5 studios (themes, decks, media, courses) --------------------------
+    ThemeColors:
+      type: object
+      additionalProperties: false
+      required: [ink, ink_soft, paper, line, blue, blue_soft, yellow, green, green_soft, code_bg, code_text]
+      properties:
+        ink: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        ink_soft: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        paper: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        line: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        blue: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        blue_soft: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        yellow: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        green: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        green_soft: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        code_bg: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+        code_text: { type: string, pattern: "^#[0-9A-Fa-f]{6}$" }
+
+    Theme:
+      type: object
+      additionalProperties: false
+      required: [name, font, colors]
+      properties:
+        name: { type: string }
+        font: { type: string }
+        colors: { $ref: "#/components/schemas/ThemeColors" }
+
+    ThemeEntry:
+      type: object
+      additionalProperties: false
+      required: [theme_id, name, font, colors]
+      properties:
+        theme_id: { type: string, description: "preset:<key> for built-ins, the asset id for the teacher's own" }
+        asset_id: { type: string, description: "Only for the teacher's own themes (library asset of kind theme)" }
+        name: { type: string }
+        font: { type: string }
+        colors: { $ref: "#/components/schemas/ThemeColors" }
+
+    ThemeList:
+      type: object
+      additionalProperties: false
+      required: [presets, custom]
+      properties:
+        presets: { type: array, items: { $ref: "#/components/schemas/ThemeEntry" } }
+        custom: { type: array, items: { $ref: "#/components/schemas/ThemeEntry" } }
+
+    ThemeExtracted:
+      allOf:
+        - { $ref: "#/components/schemas/Asset" }
+        - type: object
+          required: [theme]
+          properties:
+            theme: { $ref: "#/components/schemas/Theme" }
+
+    DeckSlide:
+      type: object
+      additionalProperties: false
+      required: [title, bullets, notes, diagram_steps, image_asset_id, image_file_url]
+      properties:
+        title: { type: string, minLength: 1 }
+        bullets: { type: array, items: { type: string } }
+        notes: { type: string }
+        diagram_steps: { type: array, items: { type: string } }
+        image_asset_id: { type: string, description: "A library image of this teacher; empty = none" }
+        image_file_url: { type: [string, "null"] }
+
+    Deck:
+      type: object
+      additionalProperties: false
+      required: [deck_id, title, course_name, room_id, session_id, theme_id, theme_name, theme, slides, slide_count, pptx_asset_id, exports, created_at, updated_at]
+      properties:
+        deck_id: { type: string }
+        title: { type: string }
+        course_name: { type: string }
+        room_id: { type: string }
+        session_id: { type: string, description: "The finished lesson the deck came from" }
+        theme_id: { type: string }
+        theme_name: { type: string }
+        theme: { $ref: "#/components/schemas/Theme" }
+        slides: { type: array, items: { $ref: "#/components/schemas/DeckSlide" } }
+        slide_count: { type: integer, minimum: 0 }
+        pptx_asset_id: { type: string, description: "Latest .pptx of this lesson in the library" }
+        exports: { type: integer, minimum: 0 }
+        created_at: { type: string }
+        updated_at: { type: string }
+
+    DeckList:
+      type: object
+      additionalProperties: false
+      required: [decks]
+      properties:
+        decks: { type: array, items: { $ref: "#/components/schemas/Deck" } }
+
+    DeckCreate:
+      type: object
+      additionalProperties: false
+      required: [session_id]
+      properties:
+        session_id: { type: string, minLength: 1, maxLength: 80 }
+
+    DeckUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 200 }
+        theme_id: { type: string, maxLength: 60 }
+        slides:
+          type: array
+          items:
+            type: object
+            required: [title]
+            properties:
+              title: { type: string }
+              bullets: { type: array, items: { type: string } }
+              notes: { type: string }
+              diagram_steps: { type: array, items: { type: string } }
+              image_asset_id: { type: string }
+
+    SlideImage:
+      type: object
+      additionalProperties: false
+      properties:
+        asset_id: { type: string, maxLength: 40 }
+
+    VisualRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        prompt: { type: string, maxLength: 600, description: "Empty = the LLM writes it from the slide text" }
+
+    VisualJob:
+      type: object
+      additionalProperties: false
+      required: [task_id, asset_id, prompt, used_llm]
+      properties:
+        task_id: { type: string }
+        asset_id: { type: string }
+        prompt: { type: string }
+        used_llm: { type: boolean }
+
+    VisualStatus:
+      type: object
+      additionalProperties: false
+      required: [status, asset_id, file_url, error, deck_id, slide_index]
+      properties:
+        status: { type: string, enum: [RUNNING, SUCCEEDED, FAILED, ERROR] }
+        asset_id: { type: string }
+        file_url: { type: [string, "null"] }
+        error: { type: [string, "null"] }
+        deck_id: { type: string }
+        slide_index: { type: [integer, "null"] }
+
+    MediaCapabilities:
+      type: object
+      additionalProperties: false
+      required: [image_editing, ffmpeg, speech, voices]
+      properties:
+        image_editing: { type: boolean }
+        ffmpeg: { type: boolean, description: "Video and audio editing need ffmpeg on the server" }
+        speech: { type: boolean, description: "edge-tts is installed" }
+        voices:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [voice, label]
+            properties:
+              voice: { type: string }
+              label: { type: string }
+
+    ThumbnailRequest:
+      type: object
+      additionalProperties: false
+      required: [video_id]
+      properties:
+        video_id: { type: string, pattern: "^[A-Za-z0-9_-]{11}$" }
+        title: { type: string, maxLength: 200 }
+        start_sec: { type: [number, "null"], minimum: 0 }
+        room_id: { type: string, maxLength: 60 }
+
+    SpeechRequest:
+      type: object
+      additionalProperties: false
+      required: [text]
+      properties:
+        text: { type: string, minLength: 2, maxLength: 3000 }
+        voice: { type: string }
+        title: { type: string, maxLength: 200 }
+        room_id: { type: string, maxLength: 60 }
+
+    MediaEdit:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 200 }
+        ops:
+          type: object
+          description: "Image: crop {x,y,w,h} in percent, rotate 0|90|180|270, flip h|v|both, width px, brightness, contrast, grayscale (not for GIFs). Video/audio: trim {start,end} seconds, mute, volume, extract_audio. Video only: to_gif (with optional trim, fps, width) makes a looping GIF image asset that can go on a slide."
+          additionalProperties: true
+
+    CourseLesson:
+      type: object
+      additionalProperties: false
+      required: [lesson_id, title, notes, session_id, assets]
+      properties:
+        lesson_id: { type: string }
+        title: { type: string }
+        notes: { type: string }
+        session_id: { type: string }
+        assets: { type: array, items: { $ref: "#/components/schemas/Asset" } }
+
+    Course:
+      type: object
+      additionalProperties: false
+      required: [course_id, title, description, room_id, published_room_id, published_at, unpublished_changes, lessons, created_at, updated_at]
+      properties:
+        course_id: { type: string }
+        title: { type: string }
+        description: { type: string }
+        room_id: { type: string }
+        published_room_id: { type: string, description: "Empty = a draft students cannot see" }
+        published_at: { type: string }
+        unpublished_changes: { type: boolean, description: "Edited after publishing: publish again so students see it" }
+        lessons: { type: array, items: { $ref: "#/components/schemas/CourseLesson" } }
+        created_at: { type: string }
+        updated_at: { type: string }
+
+    CourseList:
+      type: object
+      additionalProperties: false
+      required: [courses]
+      properties:
+        courses: { type: array, items: { $ref: "#/components/schemas/Course" } }
+
+    CourseCreate:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        description: { type: string, maxLength: 1000 }
+        room_id: { type: string, maxLength: 60 }
+
+    CourseUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 160 }
+        description: { type: string, maxLength: 1000 }
+        room_id: { type: string, maxLength: 60 }
+
+    LessonCreate:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 2, maxLength: 160 }
+        notes: { type: string, maxLength: 2000 }
+        session_id: { type: string, maxLength: 80 }
+        asset_ids: { type: array, maxItems: 20, items: { type: string } }
+
+    LessonUpdate:
+      type: object
+      additionalProperties: false
+      properties:
+        title: { type: string, maxLength: 160 }
+        notes: { type: string, maxLength: 2000 }
+
+    LessonMove:
+      type: object
+      additionalProperties: false
+      required: [direction]
+      properties:
+        direction: { type: string, enum: [up, down] }
+
+    LessonAsset:
+      type: object
+      additionalProperties: false
+      properties:
+        add: { type: string, maxLength: 40 }
+        remove: { type: string, maxLength: 40 }
+
+    PublishRequest:
+      type: object
+      additionalProperties: false
+      required: [room_id]
+      properties:
+        room_id: { type: string, minLength: 1, maxLength: 60 }
+
+    RoomCourseAsset:
+      type: object
+      additionalProperties: false
+      required: [asset_id, title, kind, source_url, start_sec, end_sec, file_url]
+      properties:
+        asset_id: { type: string }
+        title: { type: string }
+        kind: { type: string }
+        source_url: { type: string }
+        start_sec: { type: [number, "null"] }
+        end_sec: { type: [number, "null"] }
+        file_url: { type: [string, "null"] }
+
+    RoomCourses:
+      type: object
+      additionalProperties: false
+      required: [courses]
+      properties:
+        courses:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [course_id, title, description, published_at, lessons]
+            properties:
+              course_id: { type: string }
+              title: { type: string }
+              description: { type: string }
+              published_at: { type: string }
+              lessons:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: false
+                  required: [lesson_id, title, notes, assets]
+                  properties:
+                    lesson_id: { type: string }
+                    title: { type: string }
+                    notes: { type: string }
+                    assets: { type: array, items: { $ref: "#/components/schemas/RoomCourseAsset" } }
+
+    StoryCreate:
+      type: object
+      additionalProperties: false
+      required: [topic]
+      properties:
+        topic: { type: string, minLength: 3, maxLength: 400 }
+        scenes: { type: integer, minimum: 2, maximum: 8, default: 6, description: "About 5 seconds each" }
+        style: { type: string, enum: [storybook, flat, clay, realistic], default: storybook }
+        language: { type: string, enum: [ar, en], default: ar, description: "Language of the narration" }
+        voice: { type: string, maxLength: 60, description: "An edge-tts voice from /teacher/media/capabilities; empty = no narration" }
+        fade: { type: boolean, default: true }
+        vision: { type: boolean, default: false, description: "Describe each last frame with a local vision model (Ollama) to keep the next scene consistent" }
+        room_id: { type: string, maxLength: 60 }
+        retry: { type: boolean, default: false }
+
+    StoryScene:
+      type: object
+      additionalProperties: false
+      required: [n, state, narration, visual]
+      properties:
+        n: { type: integer, minimum: 1 }
+        state: { type: string, enum: [todo, running, done] }
+        narration: { type: string }
+        visual: { type: string }
+
+    StoryStatus:
+      type: object
+      additionalProperties: false
+      required: [asset_id, title, status, error, scene_count, scenes_done, style, topic, voice, fade, vision, narrated, scenes, file_url]
+      properties:
+        asset_id: { type: string, description: "The story is a library video (kind generated_video)" }
+        title: { type: string }
+        status: { type: string, enum: [pending, ready, failed] }
+        error: { type: string }
+        scene_count: { type: integer, minimum: 0 }
+        scenes_done: { type: integer, minimum: 0 }
+        style: { type: string }
+        topic: { type: string }
+        voice: { type: string }
+        fade: { type: boolean }
+        vision: { type: boolean }
+        narrated: { type: boolean }
+        scenes: { type: array, items: { $ref: "#/components/schemas/StoryScene" } }
+        file_url: { type: [string, "null"], description: "Set when status is ready" }

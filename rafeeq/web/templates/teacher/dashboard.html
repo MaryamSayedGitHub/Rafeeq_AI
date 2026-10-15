@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% block title %}{{ profile.display_name }} · رفيق{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/teacher.css">{% endblock %}
+{% block content %}
+{% include "teacher/_storage_warning.html" %}
+
+{# ------------------------------------------------------------ profile #}
+<section class="t-card t-profile">
+  <div class="t-avatar" aria-hidden="true">{{ profile.name[:1] }}</div>
+  <div class="t-grow">
+    <h1>{{ profile.display_name }}</h1>
+    {% if profile.subjects %}
+    <ul class="t-chips">{% for s in profile.subjects %}<li>{{ s }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if profile.bio %}<p>{{ profile.bio }}</p>{% endif %}
+    <p class="t-muted">
+      {{ profile.sessions_count }} جلسة جاهزة ·
+      افتراضيًا: {{ "العربية" if profile.defaults.language == "Arabic" else profile.defaults.language }}،
+      {{ LEVEL_AR[profile.defaults.student_level] }}، {{ profile.defaults.programming_language }}
+    </p>
+  </div>
+  <a href="/teacher/profile/edit" class="t-btn t-btn-light">تعديل الملف</a>
+</section>
+
+{% if profile.remembered %}
+<details class="t-card t-memory">
+  <summary>ما يتذكره المساعد عنك ({{ profile.remembered | length }})</summary>
+  <p class="t-muted">يستخدمه المساعد عند تجهيز الجلسات الجديدة. يأتي فقط من جلساتك التي وافقت عليها وطلبات التعديل التي كتبتها.</p>
+  <ul dir="auto">{% for line in profile.remembered %}<li>{{ line }}</li>{% endfor %}</ul>
+</details>
+{% endif %}
+
+{# ------------------------------------------------------- new session #}
+<section class="t-card">
+  <h2>جلسة جديدة</h2>
+  <p class="t-muted">اكتب الموضوع واختر ما تحتاجه. المساعد يجهز مسودة، تراجعها، ثم يصنع الملفات بعد موافقتك.</p>
+  {% set d = profile.defaults %}
+  <form class="t-form"
+        hx-post="/teacher/ui/sessions" hx-target="#review" hx-swap="innerHTML"
+        hx-indicator="#working" hx-disabled-elt="find button">
+    <div class="t-row">
+      <label class="t-grow">الموضوع
+        <input name="topic" required minlength="2" maxlength="200" placeholder="Python functions">
+      </label>
+      <label>الغرفة
+        <select name="room_id">
+          <option value="">بدون غرفة</option>
+          {% for r in rooms %}<option value="{{ r.room_id }}">{{ r.name }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <fieldset class="t-needs">
+      <legend>المطلوب</legend>
+      <label><input type="checkbox" name="needs" value="slides" checked> شرائح</label>
+      <label><input type="checkbox" name="needs" value="code" checked> أمثلة كود</label>
+      <label><input type="checkbox" name="needs" value="quiz" checked> اختبار</label>
+      <label>عدد الأسئلة <input name="num_quiz_questions" type="number" min="1" max="20" value="5" class="t-num"></label>
+    </fieldset>
+
+    <div class="t-row">
+      <label>مستوى الطلاب
+        <select name="student_level">
+          {% for v in ["beginner", "intermediate", "advanced"] %}
+          <option value="{{ v }}" {{ 'selected' if d.student_level == v }}>{{ LEVEL_AR[v] }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>المدة (دقيقة)
+        <input name="duration_minutes" type="number" min="15" max="240" step="5" value="{{ d.duration_minutes }}">
+      </label>
+      <label>لغة الشرح
+        <select name="language">
+          {% for v, label in [("Arabic", "العربية"), ("English", "English")] %}
+          <option value="{{ v }}" {{ 'selected' if d.language == v }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>لغة البرمجة
+        <input name="programming_language" maxlength="40" value="{{ d.programming_language }}">
+      </label>
+    </div>
+
+    <details>
+      <summary>تفاصيل اختيارية</summary>
+      <label>اسم المقرر <small>(يُملأ من الغرفة إن تركته فارغًا)</small>
+        <input name="course_name" maxlength="200">
+      </label>
+      <label>أهداف التعلم <small>(هدف في كل سطر)</small>
+        <textarea name="learning_objectives" rows="3" dir="auto" placeholder="يكتب الطالب دالة بمعاملات افتراضية&#10;يفرّق بين return و print"></textarea>
+      </label>
+      <label>ملاحظات للمساعد
+        <textarea name="notes" rows="2" dir="auto" maxlength="2000" placeholder="أمثلة من الحياة اليومية، وتجنّب الرياضيات المعقدة"></textarea>
+      </label>
+    </details>
+
+    <div class="t-actions">
+      <button class="t-btn">جهّز المسودة</button>
+      <span id="working" class="htmx-indicator t-muted">جاري التجهيز… قد يستغرق دقيقة أو اثنتين.</span>
+    </div>
+  </form>
+</section>
+
+<div id="review" aria-live="polite"></div>
+
+{# ---------------------------------------------------- past sessions #}
+<section class="t-card">
+  <h2>جلساتي</h2>
+  {% if sessions %}
+  <ul class="t-sessions">
+    {% for s in sessions %}
+    <li>
+      <div>
+        <strong dir="auto">{{ s.topic }}</strong>
+        {% if s.course_name %}<span class="t-muted"> · {{ s.course_name }}</span>{% endif %}
+        {% if s.created_at %}<div class="t-muted t-small" dir="ltr">{{ s.created_at[:10] }}</div>{% endif %}
+      </div>
+      <div class="t-files">
+        {% for f in s.files %}<a href="{{ f.url }}" download class="t-file">{{ f.name }}</a>{% endfor %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="t-muted">لا توجد جلسات بعد. الجلسة تظهر هنا بعد موافقتك على المسودة.</p>
+  {% endif %}
+</section>
+
+{# --------------------------------------------------- video generation (Lab 5) #}
+<section class="t-card">
+  <h2>ولّد فيديو متحرك <span class="t-badge">تجريبي · مدفوع</span></h2>
+  <p class="t-muted">اكتب وصف المشهد، وارفعي صورة اختياريًا (تبقى أول فريم والفيديو يكمّل حركة منها). التوليد بياخد دقيقة أو اتنين وبيتحاسب بالثانية، فخليه وصف قصير ومدة صغيرة وانتي بتجربي.</p>
+  <form class="t-form" enctype="multipart/form-data"
+        hx-post="/teacher/ui/videos/generate" hx-target="#video-gen-result" hx-swap="innerHTML"
+        hx-indicator="#video-gen-working" hx-disabled-elt="find button">
+    <label class="t-grow">وصف المشهد
+      <textarea name="prompt" required minlength="5" maxlength="800" rows="2" dir="auto"
+                placeholder="نبات يمتص الماء من التربة ويبدأ البناء الضوئي في أوراقه، أنيميشن تعليمي بسيط"></textarea>
+    </label>
+    <div class="t-row">
+      <label>صورة (اختياري{{ " — غير موجودة صورة لشخصيتك، هيتولّد نص→فيديو بدونها" if not profile.avatar_filename else "، لو سبتها فاضية هيستخدم صورة شخصيتك المحفوظة" }})
+        <input type="file" name="image" accept="image/png,image/jpeg,image/webp">
+      </label>
+      <label>المدة (ثانية)
+        <input name="duration" type="number" min="2" max="6" value="5" class="t-num">
+      </label>
+      <label><input type="checkbox" name="audio" value="true"> صوت (تكلفة أعلى تقريبًا الضعف)</label>
+    </div>
+    <div class="t-actions">
+      <button class="t-btn">ولّد الفيديو</button>
+      <span id="video-gen-working" class="htmx-indicator t-muted">جاري الإرسال…</span>
+    </div>
+  </form>
+  <div id="video-gen-result" aria-live="polite"></div>
+</section>
+
+{# --------------------------------------------- video discovery (YouTube) #}
+<section class="t-card">
+  <h2>دوّر عن شرح بالفيديو <span class="t-badge">تجريبي</span></h2>
+  <p class="t-muted">اكتب سؤال الطالب، والنظام يدوّر في فيديوهات يوتيوب ويفتح الفيديو من اللحظة اللي بتشرح الإجابة بالظبط.</p>
+  <form class="t-form" hx-post="/teacher/ui/videos/search" hx-target="#video-results" hx-swap="innerHTML"
+        hx-indicator="#video-working" hx-disabled-elt="find button">
+    <label class="t-grow">سؤال الطالب
+      <input name="q" required minlength="3" maxlength="300" dir="auto" placeholder="إزاي الدالة بترجع قيمة؟">
+    </label>
+    <div class="t-actions">
+      <button class="t-btn">ابحث</button>
+      <span id="video-working" class="htmx-indicator t-muted">جاري البحث…</span>
+    </div>
+  </form>
+  <div id="video-results" aria-live="polite"></div>
+</section>
+
+{# ------------------------------------------------------------- class #}
+<section class="t-card">
+  <h2>الفصل</h2>
+  {% if rooms %}
+  <form method="get" action="/teacher" class="t-row">
+    <label>الغرفة
+      <select name="room" onchange="this.form.submit()">
+        {% for r in rooms %}<option value="{{ r.room_id }}" {{ 'selected' if r.room_id == class_room }}>{{ r.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit">عرض</button></noscript>
+  </form>
+  <p class="t-muted">من أسئلة الطلاب ونتائج اختباراتهم الفعلية في هذه الغرفة.</p>
+  {% else %}
+  <p class="t-muted">لا توجد غرف بعد. أنشئ غرفة وادعُ طلابك من صفحة الغرف.</p>
+  {% endif %}
+  {% if class_room and not report.topics and not insights.top_questions %}
+  <p class="t-muted">لا توجد بيانات بعد: تظهر هنا بعد أن يسأل الطلاب أو يحلّوا أول اختبار.</p>
+  {% endif %}
+  <div class="t-grid">
+    <div>
+      <h3>مستوى الفهم لكل موضوع</h3>
+      <ul class="t-bars">
+        {% for t in report.topics %}
+        <li>
+          <span>{{ topic_names.get(t.topic_id, t.topic_id) }}</span>
+          <span class="t-bar"><span class="t-fill t-{{ t.status }}" style="inline-size: {{ (t.mastery * 100) | round | int }}%"></span></span>
+          <span dir="ltr">{{ (t.mastery * 100) | round | int }}%</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if report.students_at_risk %}
+      <h3>طلاب يحتاجون متابعة</h3>
+      <ul>
+        {% for st in report.students_at_risk %}
+        <li>{{ st.name }} — {% for tid in st.topic_ids %}{{ topic_names.get(tid, tid) }}{{ "، " if not loop.last }}{% endfor %}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    <div>
+      <h3>أكثر ما يسأل عنه الطلاب</h3>
+      <ul>
+        {% for q in insights.top_questions %}
+        <li>{{ q.example }} <span class="t-muted">({{ q.count }} سؤال · {{ topic_names.get(q.topic_id, q.topic_id) }})</span></li>
+        {% endfor %}
+      </ul>
+      <h3>أخطاء متكررة</h3>
+      <ul>
+        {% for m in insights.common_mistakes %}<li>{{ m.description }}</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}

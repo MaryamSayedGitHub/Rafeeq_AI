@@ -1,0 +1,13 @@
+{% extends "shell.html" %}
+{% block title %}{{ code }}{% endblock %}
+{% block body_class %}auth{% endblock %}
+{% block body %}
+<main class="error-page" id="main">
+  <div class="panel panel-pad error-card">
+    <span class="empty-icon">{{ icon('alert', 26) }}</span>
+    <p class="error-code" dir="ltr">{{ code }}</p>
+    <h1>{{ message }}</h1>
+    <a class="btn btn-primary" href="{{ u('/rooms') if user else u('/login') }}">{{ t('err.back_home') if user else t('login.title') }}</a>
+  </div>
+</main>
+{% endblock %}

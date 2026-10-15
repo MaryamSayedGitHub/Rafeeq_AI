@@ -1,0 +1,43 @@
+{% from "macros.html" import file_status, section_state, empty_state %}
+{% set files = files_res.data.files if files_res.ok else [] %}
+{% set processing = files | selectattr('status', 'equalto', 'indexing') | list %}
+<div id="files-table"
+     {% if processing %}hx-get="{{ u('/rooms/' ~ room.room_id ~ '/materials/table') }}" hx-trigger="every 10s" hx-swap="outerHTML"{% endif %}>
+  {% if not files_res.ok %}
+    <div class="panel-pad">{{ section_state(t, files_res) }}</div>
+  {% elif not files %}
+    {% call empty_state('folder', t('materials.empty.' ~ user.role ~ '.title'), t('materials.empty.' ~ user.role ~ '.text')) %}{% endcall %}
+  {% else %}
+    {% if processing %}<div class="inline-note table-note">{{ icon('refresh', 16) }}<span>{{ t('materials.processing_note') }}</span></div>{% endif %}
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th scope="col">{{ t('materials.col.name') }}</th>
+          <th scope="col">{{ t('materials.col.source') }}</th>
+          <th scope="col">{{ t('materials.col.status') }}</th>
+          <th scope="col"><span class="sr-only">{{ t('materials.download') }}</span></th>
+          {% if user.role == 'teacher' %}<th scope="col"><span class="sr-only">{{ t('materials.delete') }}</span></th>{% endif %}
+        </tr></thead>
+        <tbody>
+          {% for f in files %}
+          <tr>
+            <td><span class="file-cell">{{ icon('file', 18) }}<span dir="auto">{{ f.name }}</span></span></td>
+            <td>{{ t('source.' ~ f.source) }}</td>
+            <td>{{ file_status(t, f.status) }}</td>
+            <td><a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/materials/' ~ f.file_id ~ '/download') }}">{{ icon('download', 16) }}<span>{{ t('materials.download') }}</span></a></td>
+            {% if user.role == 'teacher' %}
+            <td>
+              <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/materials/' ~ f.file_id ~ '/delete') }}"
+                    onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ t('materials.delete_confirm', name=f.name) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf }}">
+                <button class="btn btn-light btn-sm" type="submit">{{ icon('trash', 16) }}<span>{{ t('materials.delete') }}</span></button>
+              </form>
+            </td>
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</div>

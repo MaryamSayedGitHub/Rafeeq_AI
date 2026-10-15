@@ -1,0 +1,74 @@
+{% if results %}
+<div class="yt-wrap">
+  <div id="yt-player" class="yt-player"></div>
+  <div class="t-actions yt-controls">
+    <button type="button" class="t-btn t-btn-light" id="yt-prev">◀ السابق</button>
+    <span id="yt-now" class="t-muted" dir="auto"></span>
+    <button type="button" class="t-btn t-btn-light" id="yt-next">التالي ▶</button>
+  </div>
+  <p id="yt-caption" class="t-muted" dir="auto"></p>
+</div>
+
+<ul class="t-sessions yt-list" id="yt-list">
+  {% for r in results %}
+  <li class="yt-result" data-index="{{ loop.index0 }}">
+    <img src="{{ r.thumbnail }}" alt="" class="yt-thumb" loading="lazy">
+    <div class="t-grow">
+      <strong dir="auto">{{ r.title }}</strong>
+      <span class="t-muted"> · {{ r.channel }} · تطابق {{ (r.score * 100) | round | int }}%</span>
+      <div class="t-muted t-small" dir="ltr">⏱ {{ r.open_at }}</div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+
+<script>
+(function () {
+  var results = {{ results | tojson | safe }};
+  var idx = 0, player = null;
+
+  function loadApi(cb) {
+    if (window.YT && window.YT.Player) { cb(); return; }
+    var existing = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function () { if (existing) existing(); cb(); };
+    if (!document.getElementById("yt-iframe-api")) {
+      var tag = document.createElement("script");
+      tag.id = "yt-iframe-api";
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    }
+  }
+
+  function show(i) {
+    idx = (i + results.length) % results.length;
+    var r = results[idx];
+    document.getElementById("yt-now").textContent = (idx + 1) + " / " + results.length + " — " + r.title;
+    document.getElementById("yt-caption").textContent = r.text;
+    var items = document.querySelectorAll("#yt-list .yt-result");
+    for (var n = 0; n < items.length; n++) items[n].classList.toggle("yt-active", n === idx);
+    if (player && player.loadVideoById) {
+      player.loadVideoById({ videoId: r.video_id, startSeconds: Math.floor(r.start_sec) });
+    }
+  }
+
+  loadApi(function () {
+    var r0 = results[0];
+    player = new YT.Player("yt-player", {
+      height: "360", width: "100%",
+      videoId: r0.video_id,
+      playerVars: { start: Math.floor(r0.start_sec) },
+      events: { onReady: function () { show(0); } }
+    });
+  });
+
+  document.getElementById("yt-prev").addEventListener("click", function () { show(idx - 1); });
+  document.getElementById("yt-next").addEventListener("click", function () { show(idx + 1); });
+  var items = document.querySelectorAll("#yt-list .yt-result");
+  for (var n = 0; n < items.length; n++) {
+    items[n].addEventListener("click", function () { show(parseInt(this.dataset.index, 10)); });
+  }
+})();
+</script>
+{% else %}
+<p class="t-muted">لا توجد نتائج. جرّبي صياغة مختلفة للسؤال، أو تأكدي إن GOOGLE_API_KEY متظبط في .env.</p>
+{% endif %}

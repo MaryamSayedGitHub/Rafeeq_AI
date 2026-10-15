@@ -1,0 +1,28 @@
+{
+  "topics": [
+    {
+      "topic_id": "t_cell_structure",
+      "mastery": 0.8,
+      "status": "on_track"
+    },
+    {
+      "topic_id": "t_energy",
+      "mastery": 0.55,
+      "status": "watch"
+    },
+    {
+      "topic_id": "t_genetics",
+      "mastery": 0.35,
+      "status": "struggling"
+    }
+  ],
+  "students_at_risk": [
+    {
+      "user_id": "u_omar",
+      "name": "عمر خالد",
+      "topic_ids": [
+        "t_genetics"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{% extends "shell.html" %}
+{% block body_class %}auth{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <aside class="auth-aside">
+    <a class="brand brand-light" href="{{ u('/login') }}">
+      <span class="brand-mark">{{ icon('book', 22) }}</span>
+      <span class="brand-text"><strong>{{ t('app.name') }}</strong><small>{{ t('app.tagline') }}</small></span>
+    </a>
+    <div class="auth-message">
+      <h2>{{ t('auth.aside.title') }}</h2>
+      <p>{{ t('auth.aside.text') }}</p>
+      <ul class="auth-points">
+        <li>{{ icon('book', 18) }}<span>{{ t('auth.point.1') }}</span></li>
+        <li>{{ icon('bulb', 18) }}<span>{{ t('auth.point.2') }}</span></li>
+        <li>{{ icon('check_circle', 18) }}<span>{{ t('auth.point.3') }}</span></li>
+      </ul>
+    </div>
+  </aside>
+  <main class="auth-main" id="main">
+    <div class="auth-top">
+      <a class="lang-toggle" href="{{ u('/lang/' ~ ('en' if lang == 'ar' else 'ar'), next=request.url.path) }}" lang="{{ 'en' if lang == 'ar' else 'ar' }}">{{ icon('globe', 18) }}<span>{{ t('lang.switch') }}</span></a>
+    </div>
+    <section class="auth-card">
+      {% for kind, text in flashes %}
+        <div class="notice notice-{{ kind }}" role="status">{{ icon('info', 18) }}<p>{{ text }}</p></div>
+      {% endfor %}
+      {% block card %}{% endblock %}
+    </section>
+  </main>
+</div>
+{% endblock %}

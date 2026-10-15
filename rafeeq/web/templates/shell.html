@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="{{ lang }}" dir="{{ dir }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#087f73">
+  <title>{% block title %}{{ t('app.name') }}{% endblock %} · {{ t('app.name') }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="{{ u('/static/rafeeq.css') }}">
+  <link rel="stylesheet" href="{{ u('/static/tutor.css') }}">
+  <script src="https://unpkg.com/htmx.org@2.0.4" defer></script>
+  <script src="{{ u('/static/tutor.js') }}" defer></script>
+  <script src="{{ u('/static/rafeeq.js') }}" defer></script>
+</head>
+<body class="{% block body_class %}{% endblock %}"
+      hx-headers='{"X-CSRF-Token": "{{ csrf }}"}'
+      data-msg-copied="{{ t('copied') }}" data-msg-copy-failed="{{ t('copy_failed') }}"
+      data-msg-error="{{ t('err.generic') }}" data-msg-no-file="{{ t('materials.no_file') }}">
+  <a class="skip-link" href="#main">{{ t('nav.skip') }}</a>
+  {% block body %}{% endblock %}
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{% if r.cards %}
+<section class="tq-box">
+  <h4 class="bubble-sub">{{ icon('book', 16) }} {{ t('tutor.cards.title') }}</h4>
+  <p class="muted small">{{ t('tutor.cards.tap') }}</p>
+  <div class="tq-deck">
+    {% for c in r.cards %}
+    <button class="tq-card" type="button" dir="auto" aria-pressed="false">
+      <span class="tq-front">{{ c.front }}</span><span class="tq-back">{{ c.back }}</span>
+    </button>
+    {% endfor %}
+  </div>
+</section>
+{% else %}
+  <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('tutor.tool_fail') }}</span></div>
+{% endif %}

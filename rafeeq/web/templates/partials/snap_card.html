@@ -1,0 +1,33 @@
+{# What /snap read from the photo. The student can fix the text, then ask about it or have it checked. #}
+<div class="chat-row from-rafeeq">
+  <span class="chat-avatar">{{ icon('book', 18) }}</span>
+  <div class="bubble snap-card" tabindex="-1" data-focus-heading>
+    <div class="snap-head">
+      <h4 class="bubble-title">{{ t('snap.title') }}</h4>
+      <span class="badge badge-gray">{{ t('snap.type.' ~ snap.type) }}</span>
+    </div>
+    <div class="photo-frame" data-photo-slot data-file-id="{{ snap.file_id }}" data-claim-latest></div>
+    {% if snap.type == 'other' %}
+      <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('snap.retake') }}</span></div>
+    {% elif snap.confidence < 0.5 %}
+      <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('snap.unclear') }}</span></div>
+    {% endif %}
+    <form class="snap-form" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/message') }}" hx-target="#chat-log"
+          hx-swap="beforeend" hx-indicator="#chat-indicator">
+      <input type="hidden" name="file_id" value="{{ snap.file_id }}">
+      <div class="field">
+        <label for="snap-text-{{ snap.file_id }}">{{ t('snap.text_label') }}</label>
+        <textarea class="input snap-text" id="snap-text-{{ snap.file_id }}" name="text" rows="4" dir="auto">{{ snap.text }}</textarea>
+      </div>
+      <div class="field">
+        <label for="snap-q-{{ snap.file_id }}">{{ t('snap.question_label') }} <span class="muted">({{ t('optional') }})</span></label>
+        <input class="input" id="snap-q-{{ snap.file_id }}" name="question" placeholder="{{ t('snap.question_placeholder') }}">
+      </div>
+      <div class="btn-row">
+        {% set check_first = snap.type == 'student_work' %}
+        <button class="btn {{ 'btn-primary' if check_first else 'btn-secondary' }}" type="submit" name="mode" value="check_work">{{ icon('pen', 16) }}<span>{{ t('snap.check') }}</span></button>
+        <button class="btn {{ 'btn-secondary' if check_first else 'btn-primary' }}" type="submit" name="mode" value="ask">{{ icon('bulb', 16) }}<span>{{ t('snap.explain') }}</span></button>
+      </div>
+    </form>
+  </div>
+</div>

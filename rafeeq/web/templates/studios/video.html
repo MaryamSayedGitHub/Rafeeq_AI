@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% from "macros.html" import empty_state, section_state, project_bar with context %}
+{% block title %}{{ t('video.studio_title') }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('video.studio_title') }}</h1>
+    <p>{{ t('video.studio_intro') }}</p>
+  </div>
+</div>
+{{ project_bar(proj, '/video') }}
+
+<div class="studio-layout">
+  <section class="panel panel-pad" aria-labelledby="video-search-title">
+    <h2 class="panel-title" id="video-search-title">{{ t('video.search_title') }}</h2>
+    <p class="muted">{{ t('video.search_text') }}</p>
+    <form class="form-stack" hx-post="{{ u('/video/search') }}" hx-target="#video-search-area" hx-indicator="#video-search-indicator">
+      <input type="hidden" name="room_id" value="{{ proj.room.room_id if proj.room else '' }}">
+      <div class="field">
+        <label for="video-q">{{ t('video.question') }}</label>
+        <input class="input" id="video-q" name="q" required minlength="3" maxlength="300" dir="auto" value="{{ query }}">
+      </div>
+      <button class="btn btn-primary" type="submit">{{ icon('search', 18) }}<span>{{ t('video.search') }}</span></button>
+      <div class="htmx-indicator inline-loading" id="video-search-indicator"><span class="spinner"></span>{{ t('video.searching') }}</div>
+    </form>
+    <p class="help">{{ t('video.cover_note') }}</p>
+  </section>
+  <div class="stack">
+    <div id="video-search-area" aria-live="polite">
+      <section class="panel draft-placeholder">
+        <span class="empty-icon">{{ icon('search', 26) }}</span>
+        <h3>{{ t('video.results_here') }}</h3>
+        <p>{{ t('video.results_here_text') }}</p>
+      </section>
+    </div>
+  </div>
+</div>
+
+{% set room_names = proj.room_names %}
+<section class="panel panel-pad" aria-labelledby="moments-title">
+  <h2 class="panel-title" id="moments-title">{{ t('video.saved_moments') }}</h2>
+  {% if not moments_res.ok %}
+    {{ section_state(t, moments_res) }}
+  {% elif not moments %}
+    <p class="muted">{{ t('video.no_moments') }}</p>
+  {% else %}
+    <ul class="asset-grid">
+      {% for a in moments %}{% include "partials/asset_card.html" %}{% endfor %}
+    </ul>
+  {% endif %}
+  {% if covers %}
+    <h3 class="panel-title section-gap">{{ t('video.saved_covers') }}</h3>
+    <ul class="asset-grid">
+      {% for a in covers %}{% include "partials/asset_card.html" %}{% endfor %}
+    </ul>
+  {% endif %}
+  <p class="help"><a href="{{ u('/library', kind='source_video') }}">{{ t('video.open_library') }}</a></p>
+</section>
+{% endblock %}

@@ -1,0 +1,80 @@
+{
+  "session_id": "5f0c2a9e1b7d4c3a8e6f1d2b3c4a5e6f",
+  "room_id": "r_bio101",
+  "topic": "Python functions",
+  "status": "awaiting_approval",
+  "selected_agents": [
+    "research_agent",
+    "slides_agent",
+    "code_agent",
+    "quiz_agent"
+  ],
+  "reasoning": "The teacher asked for slides, code and a quiz, so all four agents are needed.",
+  "memory": [
+    "Usually teaches in Arabic, code in Python, for beginner students."
+  ],
+  "draft": {
+    "topic": "Python functions",
+    "course_name": "أحياء 101 - د. منى",
+    "language": "Arabic",
+    "outline": [
+      "ما هي الدالة ولماذا نستخدمها",
+      "تعريف دالة واستدعاؤها",
+      "المعاملات والقيم الافتراضية",
+      "return مقابل print"
+    ],
+    "slides": [
+      {
+        "title": "ما هي الدالة؟",
+        "bullets": [
+          "مجموعة أوامر لها اسم",
+          "نكتبها مرة ونستخدمها كثيرًا",
+          "تجعل البرنامج أقصر وأوضح"
+        ],
+        "notes": "ابدأ بمثال آلة القهوة: تضع المدخلات فتحصل على النتيجة.",
+        "diagram_steps": []
+      },
+      {
+        "title": "كيف تعمل الدالة",
+        "bullets": [
+          "نعرّفها بـ def",
+          "نستدعيها باسمها",
+          "ترجع النتيجة بـ return"
+        ],
+        "notes": "تتبع مسار التنفيذ خطوة بخطوة على السبورة.",
+        "diagram_steps": [
+          "تعريف الدالة",
+          "استدعاء بالقيم",
+          "تنفيذ الأوامر",
+          "إرجاع النتيجة"
+        ]
+      }
+    ],
+    "code_examples": [
+      {
+        "title": "دالة بقيمة افتراضية",
+        "code": "def greet(name, greeting=\"Hello\"):\n    return f\"{greeting}, {name}!\"\n\nprint(greet(\"Sara\"))\nprint(greet(\"Omar\", \"Hi\"))",
+        "explanation": "The function uses Hello when no greeting is given.",
+        "verified": true,
+        "fix_attempts": 0,
+        "output": "Hello, Sara!\nHi, Omar!"
+      }
+    ],
+    "quiz": [
+      {
+        "question": "ماذا ترجع الدالة التي لا تحتوي على return؟",
+        "options": [
+          "0",
+          "None",
+          "خطأ",
+          "سلسلة فارغة"
+        ],
+        "answer_index": 1,
+        "explanation": "كل دالة بدون return ترجع None تلقائيًا."
+      }
+    ]
+  },
+  "revision_count": 0,
+  "revisions_left": 3,
+  "files": []
+}

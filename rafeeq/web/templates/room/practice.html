@@ -1,0 +1,40 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state, empty_state %}
+{% block title %}{{ t('tab.practice') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.practice') }}</h1>
+    <p>{{ t('practice.intro') }}</p>
+  </div>
+</div>
+
+<section class="panel panel-pad">
+  {% if not topics_res.ok %}
+    {{ section_state(t, topics_res) }}
+  {% elif not topics_res.data.topics %}
+    {% call empty_state('quiz', t('practice.no_topics.title'), t('practice.no_topics.text')) %}{% endcall %}
+  {% else %}
+    <form class="quiz-start" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/practice/quiz') }}" hx-target="#quiz-area" hx-indicator="#quiz-indicator">
+      <div class="field">
+        <label for="topic_id">{{ t('practice.topic') }}</label>
+        <select class="input" id="topic_id" name="topic_id" required>
+          {% for tp in topics_res.data.topics %}
+          <option value="{{ tp.topic_id }}" {% if tp.topic_id == selected %}selected{% endif %}>{{ tp.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field field-narrow">
+        <label for="count">{{ t('practice.count') }}</label>
+        <select class="input" id="count" name="count">
+          {% for n in (3, 5, 10) %}<option value="{{ n }}" {% if n == 5 %}selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary" type="submit">{{ icon('quiz', 18) }}<span>{{ t('practice.start') }}</span></button>
+    </form>
+    <div class="htmx-indicator inline-loading" id="quiz-indicator"><span class="spinner"></span>{{ t('practice.preparing') }}</div>
+  {% endif %}
+</section>
+
+<div id="quiz-area" class="quiz-area"></div>
+{% endblock %}

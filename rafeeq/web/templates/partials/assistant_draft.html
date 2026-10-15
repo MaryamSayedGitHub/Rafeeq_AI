@@ -1,0 +1,11 @@
+<div class="draft" tabindex="-1" data-focus-heading>
+  <div class="draft-head">
+    <h3>{{ t('assistant.draft') }}</h3>
+    <span class="badge badge-amber">{{ t('assistant.status.' ~ draft.status) }}</span>
+  </div>
+  <div class="draft-text" dir="auto">{{ draft.draft_reply }}</div>
+  <div class="btn-row">
+    <button type="button" class="btn btn-secondary btn-sm" data-copy="{{ draft.draft_reply }}">{{ icon('copy', 16) }}<span>{{ t('copy') }}</span></button>
+  </div>
+  <p class="muted small">{{ t('assistant.copy_note') }}</p>
+</div>

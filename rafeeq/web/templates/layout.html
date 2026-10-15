@@ -1,0 +1,73 @@
+{% extends "shell.html" %}
+{% block body_class %}app role-{{ user.role }}{% endblock %}
+{% block body %}
+<header class="topbar">
+  <a class="brand" href="{{ u('/rooms') }}">
+    <span class="brand-mark">{{ icon('book', 22) }}</span>
+    <span class="brand-text"><strong>{{ t('app.name') }}</strong><small>{{ t('app.tagline') }}</small></span>
+  </a>
+  {% if room %}
+  <div class="topbar-room">
+    <span class="topbar-sep" aria-hidden="true"></span>
+    <span class="topbar-room-name">{{ room.name }}</span>
+  </div>
+  {% endif %}
+  <div class="topbar-spacer"></div>
+  <a class="lang-toggle" href="{{ u('/lang/' ~ ('en' if lang == 'ar' else 'ar'), next=request.url.path ~ ('?' ~ request.url.query if request.url.query else '')) }}"
+     lang="{{ 'en' if lang == 'ar' else 'ar' }}" aria-label="{{ t('lang.switch_label') }}">{{ icon('globe', 18) }}<span>{{ t('lang.switch') }}</span></a>
+  <div class="user-chip">
+    <span class="avatar">{{ user.name[:1] }}</span>
+    <span class="user-meta"><strong>{{ user.name }}</strong><small>{{ t('role.' ~ user.role) }}</small></span>
+  </div>
+  <form method="post" action="{{ u('/logout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button class="icon-btn" type="submit" title="{{ t('nav.logout') }}" aria-label="{{ t('nav.logout') }}">{{ icon('logout', 18, 'back') }}</button>
+  </form>
+</header>
+
+<aside class="sidebar" aria-label="{{ t('nav.rooms') }}">
+  <nav class="side-nav">
+    <a class="nav-link {% if not room and tab not in ('profile', 'library', 'studio', 'video', 'presentations', 'media', 'story', 'learning') %}active{% endif %}" href="{{ u('/rooms') }}">{{ icon('door') }}<span>{{ t('nav.rooms') }}</span></a>
+  </nav>
+  {% if room %}
+  <div class="side-label">{{ t('nav.this_room') }}</div>
+  <div class="side-room">
+    <span class="side-room-icon">{{ icon('book', 18) }}</span>
+    <span class="side-room-name">{{ room.name }}</span>
+  </div>
+  <nav class="side-nav" aria-label="{{ room.name }}">
+    {% if user.role == 'teacher' %}
+      {% set tabs = [('overview','dashboard'), ('materials','folder'), ('students','users'), ('inbox','chat'), ('insights','chart')] %}
+    {% else %}
+      {% set tabs = [('study','chat'), ('study-files','file'), ('materials','folder'), ('practice','quiz'), ('progress','trend'), ('learn','book')] %}
+    {% endif %}
+    {% for key, ic in tabs %}
+    <a class="nav-link {% if tab == key %}active{% endif %}" href="{{ u('/rooms/' ~ room.room_id ~ '/' ~ key) }}" {% if tab == key %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ t('tab.' ~ key) }}</span></a>
+    {% endfor %}
+  </nav>
+  {% endif %}
+  {% if user.role == 'teacher' %}
+  {% set nq = nav_q or ({'room': room.room_id} if room else {}) %}
+  <div class="side-label">{{ t('nav.studios') }}</div>
+  <nav class="side-nav" aria-label="{{ t('nav.studios') }}">
+    {% for key, ic in [('studio','sparkle'), ('video','search'), ('presentations','presentation'), ('media','image'), ('story','film'), ('learning','book'), ('library','folder')] %}
+    {% set href = u('/rooms/' ~ room.room_id ~ '/studio') if (key == 'studio' and room) else (u('/library') if key == 'library' else u('/' ~ key, **nq)) %}
+    <a class="nav-link {% if tab == key %}active{% endif %}" href="{{ href }}" {% if tab == key %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ t('nav.' ~ key) }}</span></a>
+    {% endfor %}
+  </nav>
+  <nav class="side-nav side-bottom">
+    <a class="nav-link {% if tab == 'profile' %}active{% endif %}" href="{{ u('/profile') }}">{{ icon('settings') }}<span>{{ t('nav.profile') }}</span></a>
+  </nav>
+  {% endif %}
+</aside>
+
+<main class="main" id="main" tabindex="-1">
+  <div class="page">
+    {% for kind, text in flashes %}
+      <div class="notice notice-{{ kind }}" role="status">{{ icon('check_circle' if kind == 'success' else 'alert' if kind in ('error','warning') else 'info', 18) }}<p>{{ text }}</p></div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+    <footer class="page-footer">{{ t('footer') }}</footer>
+  </div>
+</main>
+{% endblock %}

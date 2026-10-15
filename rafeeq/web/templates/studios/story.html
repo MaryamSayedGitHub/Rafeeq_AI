@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% from "macros.html" import empty_state, project_bar with context %}
+{% block title %}{{ t('story.title') }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('story.title') }}</h1>
+    <p>{{ t('story.intro') }}</p>
+  </div>
+</div>
+{{ project_bar(proj, '/story') }}
+{% set rid = proj.room.room_id if proj.room else '' %}
+
+<section class="panel panel-pad" aria-labelledby="story-new-title">
+  <h2 class="panel-title" id="story-new-title">{{ icon('film', 18) }}<span>{{ t('story.new') }}</span> <span class="badge badge-amber">{{ t('video.paid') }}</span></h2>
+  <p class="muted">{{ t('story.cost') }}</p>
+  {% if not caps.get('ffmpeg') %}<div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('media.no_ffmpeg') }}</span></div>{% endif %}
+  <form class="form-stack" hx-post="{{ u('/story') }}" hx-target="#story-area" hx-indicator="#story-indicator">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="room_id" value="{{ rid }}">
+    <div class="field"><label for="story-topic">{{ t('story.topic') }}</label>
+      <textarea class="input" id="story-topic" name="topic" rows="3" required minlength="3" maxlength="400" dir="auto">{{ topic }}</textarea>
+      <p class="help">{{ t('story.topic_help') }}</p></div>
+    <div class="form-grid">
+      <div class="field"><label for="story-scenes">{{ t('story.scenes') }}</label>
+        <input class="input" id="story-scenes" name="scenes" type="number" min="2" max="8" value="6" dir="ltr">
+        <p class="help">{{ t('story.scenes_help') }}</p></div>
+      <div class="field"><label for="story-style">{{ t('story.style') }}</label>
+        <select class="input" id="story-style" name="style">{% for s in styles %}<option value="{{ s }}">{{ t('story.style.' ~ s) }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="story-voice">{{ t('story.voice') }}</label>
+        <select class="input" id="story-voice" name="voice"><option value="">{{ t('story.no_voice') }}</option>
+          {% for v in caps.get('voices', []) %}<option value="{{ v.voice }}"{% if v.voice == 'ar-EG-SalmaNeural' %} selected{% endif %}>{{ v.label }}</option>{% endfor %}</select>
+        {% if not caps.get('speech') %}<p class="help">{{ t('media.no_speech') }}</p>{% endif %}</div>
+    </div>
+    <div class="check-row">
+      <label class="check-pill"><input type="checkbox" name="fade" value="1" checked><span>{{ t('story.fade') }}</span></label>
+      <label class="check-pill"><input type="checkbox" name="vision" value="1"><span>{{ t('story.vision') }}</span></label>
+    </div>
+    <button class="btn btn-primary" type="submit">{{ icon('sparkle', 18) }}<span>{{ t('story.start') }}</span></button>
+    <div class="htmx-indicator inline-loading" id="story-indicator"><span class="spinner"></span>{{ t('story.planning') }}</div>
+  </form>
+  <div id="story-area" aria-live="polite"></div>
+</section>
+
+<section class="panel panel-pad" aria-labelledby="story-old-title">
+  <h2 class="panel-title" id="story-old-title">{{ icon('folder', 18) }}<span>{{ t('story.mine') }}</span></h2>
+  {# a story that is still being made resumes by itself: the fragment reloads and moves it forward #}
+  {% for a in stories if a.status == 'pending' %}
+    <div class="video-job" hx-get="{{ u('/story/' ~ a.asset_id) }}" hx-trigger="load" hx-swap="outerHTML"><div class="inline-loading" style="display:flex"><span class="spinner"></span>{{ a.title }}</div></div>
+  {% endfor %}
+  {% if not stories %}
+    {{ empty_state('film', t('story.none'), t('story.none_text')) }}
+  {% else %}
+  <ul class="asset-grid">
+    {% for a in stories if a.status != 'pending' %}{% include "partials/asset_card.html" %}{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+{% endblock %}

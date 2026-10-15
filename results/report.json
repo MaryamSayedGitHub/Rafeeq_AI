@@ -1,0 +1,536 @@
+{
+  "generated": "2026-10-10T16:36:36+00:00",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "cer": {
+    "status": "RAN",
+    "data": "DEMO images (synthetic, NOT real handwriting)",
+    "images": 20,
+    "mean_cer": {
+      "columns": [
+        "ar",
+        "code",
+        "en",
+        "math",
+        "ALL"
+      ],
+      "index": [
+        [
+          "easyocr",
+          "pre"
+        ],
+        [
+          "easyocr",
+          "raw"
+        ],
+        [
+          "ollama",
+          "pre"
+        ],
+        [
+          "ollama",
+          "raw"
+        ]
+      ],
+      "data": [
+        [
+          0.037,
+          0.152,
+          0.39,
+          0.157,
+          0.184
+        ],
+        [
+          0.019,
+          0.052,
+          0.367,
+          0.14,
+          0.145
+        ],
+        [
+          0.219,
+          0.091,
+          0.143,
+          0.063,
+          0.129
+        ],
+        [
+          0.879,
+          0.341,
+          0.265,
+          0.651,
+          0.534
+        ]
+      ]
+    },
+    "preprocessing_effect": {
+      "easyocr": {
+        "raw": 0.145,
+        "pre": 0.184,
+        "pre_minus_raw": 0.04,
+        "images": 20
+      },
+      "ollama": {
+        "raw": 0.534,
+        "pre": 0.129,
+        "pre_minus_raw": -0.405,
+        "images": 20
+      }
+    },
+    "best_per_reader": {
+      "easyocr": {
+        "preset": "raw",
+        "cer": 0.145
+      },
+      "ollama": {
+        "preset": "pre",
+        "cer": 0.129
+      }
+    },
+    "baseline_available": true
+  },
+  "work": {
+    "status": "RAN",
+    "llm_available": true,
+    "model": "qwen3:8b",
+    "cases": 14,
+    "data": "developer-written cases in work_cases.json (text, not photos)",
+    "step_status_accuracy": {
+      "correct": 36,
+      "total": 38,
+      "rate": 0.947
+    },
+    "first_error_localization": {
+      "correct": 13,
+      "total": 14,
+      "rate": 0.929
+    },
+    "hint_relevance_keyword_proxy": {
+      "relevant": 5,
+      "total": 7,
+      "rate": 0.714
+    },
+    "hint_format": {
+      "compliant": 38,
+      "total": 38,
+      "rate": 1.0,
+      "rule": "one sentence <= 28 words for a step that is not ok, empty for ok"
+    },
+    "hint_leaks": {
+      "hints_containing_a_solution_string": 0,
+      "hints_containing_a_line_of_working": 0
+    },
+    "uncertainty_handling": {
+      "handled": 4,
+      "total": 4,
+      "rate": 1.0
+    },
+    "incomplete_work_detected": {
+      "detected": 1,
+      "total": 1,
+      "rate": 1.0
+    },
+    "per_case": [
+      {
+        "id": "en_math_sign",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "error"
+          ],
+          [
+            "ok",
+            "error"
+          ],
+          [
+            "ok",
+            "error"
+          ]
+        ],
+        "got": [
+          "ok",
+          "error",
+          "ok",
+          "ok"
+        ],
+        "first_error_expected": 2,
+        "first_error_got": 2,
+        "hints": [
+          "Should the 6 be subtracted from 14 or added?"
+        ]
+      },
+      {
+        "id": "en_math_ok",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "ok"
+          ],
+          [
+            "ok"
+          ],
+          [
+            "ok"
+          ]
+        ],
+        "got": [
+          "ok",
+          "ok",
+          "ok",
+          "ok"
+        ],
+        "first_error_expected": null,
+        "first_error_got": null,
+        "hints": []
+      },
+      {
+        "id": "en_arith_late",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "ok"
+          ],
+          [
+            "error"
+          ]
+        ],
+        "got": [
+          "ok",
+          "ok",
+          "error"
+        ],
+        "first_error_expected": 3,
+        "first_error_got": 3,
+        "hints": [
+          "Re-check the arithmetic in this step."
+        ]
+      },
+      {
+        "id": "en_arith_first",
+        "expected": [
+          [
+            "error"
+          ]
+        ],
+        "got": [
+          "error"
+        ],
+        "first_error_expected": 1,
+        "first_error_got": 1,
+        "hints": [
+          "Re-check the arithmetic in this step."
+        ]
+      },
+      {
+        "id": "en_math_final",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "ok"
+          ],
+          [
+            "error"
+          ]
+        ],
+        "got": [
+          "ok",
+          "ok",
+          "ok"
+        ],
+        "first_error_expected": 3,
+        "first_error_got": null,
+        "hints": []
+      },
+      {
+        "id": "en_math_incomplete",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "ok"
+          ]
+        ],
+        "got": [
+          "ok",
+          "ok"
+        ],
+        "first_error_expected": null,
+        "first_error_got": null,
+        "hints": []
+      },
+      {
+        "id": "ar_math_sign",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "error"
+          ],
+          [
+            "ok",
+            "error"
+          ],
+          [
+            "ok",
+            "error"
+          ]
+        ],
+        "got": [
+          "ok",
+          "error",
+          "ok",
+          "ok"
+        ],
+        "first_error_expected": 2,
+        "first_error_got": 2,
+        "hints": [
+          "هل تم الحفاظ على الإشارة عند نقل 6 إلى الطرف الآخر؟"
+        ]
+      },
+      {
+        "id": "ar_arith",
+        "expected": [
+          [
+            "error"
+          ]
+        ],
+        "got": [
+          "error"
+        ],
+        "first_error_expected": 1,
+        "first_error_got": 1,
+        "hints": [
+          "راجع الحساب في هذه الخطوة."
+        ]
+      },
+      {
+        "id": "en_code_eq",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "error"
+          ],
+          [
+            "ok",
+            "error"
+          ],
+          [
+            "ok"
+          ]
+        ],
+        "got": [
+          "ok",
+          "error",
+          "ok",
+          "ok"
+        ],
+        "first_error_expected": 2,
+        "first_error_got": 2,
+        "hints": [
+          "Re-check this step: which rule did you use, and did you apply it correctly?"
+        ]
+      },
+      {
+        "id": "en_code_ok",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "ok"
+          ]
+        ],
+        "got": [
+          "ok",
+          "check"
+        ],
+        "first_error_expected": null,
+        "first_error_got": null,
+        "hints": [
+          "Make sure this step follows from the previous one."
+        ]
+      },
+      {
+        "id": "unreliable_marked",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "check"
+          ],
+          [
+            "ok",
+            "check"
+          ]
+        ],
+        "got": [
+          "ok",
+          "check",
+          "ok"
+        ],
+        "first_error_expected": null,
+        "first_error_got": null,
+        "hints": [
+          "I could not read this line clearly, could you type it for me?"
+        ]
+      },
+      {
+        "id": "crossed_out",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "check"
+          ],
+          [
+            "ok",
+            "check"
+          ]
+        ],
+        "got": [
+          "ok",
+          "check",
+          "ok"
+        ],
+        "first_error_expected": null,
+        "first_error_got": null,
+        "hints": [
+          "This line looks crossed out, should I check it or ignore it?"
+        ]
+      },
+      {
+        "id": "ambiguous_sign",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "check"
+          ]
+        ],
+        "got": [
+          "ok",
+          "check"
+        ],
+        "first_error_expected": null,
+        "first_error_got": null,
+        "hints": [
+          "I am not sure about the sign or operation in this line, what is it exactly?"
+        ]
+      },
+      {
+        "id": "ar_unreadable",
+        "expected": [
+          [
+            "ok"
+          ],
+          [
+            "check"
+          ]
+        ],
+        "got": [
+          "ok",
+          "check"
+        ],
+        "first_error_expected": null,
+        "first_error_got": null,
+        "hints": [
+          "لم أستطع قراءة هذا السطر بوضوح، هل يمكنك كتابته لي؟"
+        ]
+      }
+    ]
+  },
+  "citations": {
+    "status": "RAN",
+    "room_id": "r_bio101",
+    "material_source": [
+      "sample"
+    ],
+    "note": "material_source 'sample' means M2's real retrieval was not reachable: these are the agreed sample passages, not your database",
+    "citation_validity": {
+      "valid": 3,
+      "total": 3,
+      "rate": 1.0
+    },
+    "support": {
+      "supported": 2,
+      "unchecked": 1,
+      "none": 2
+    },
+    "answerable_answered": {
+      "answered": 3,
+      "total": 3,
+      "rate": 1.0
+    },
+    "unanswerable_refused": {
+      "refused": 2,
+      "total": 2,
+      "rate": 1.0
+    },
+    "per_question": [
+      {
+        "q": "ما وظيفة الميتوكوندريا؟",
+        "grounded": true,
+        "citations": [
+          {
+            "file_name": "biology_ch3.pdf",
+            "page": 12
+          }
+        ],
+        "support": "supported",
+        "flagged": false
+      },
+      {
+        "q": "What does the mitochondria do?",
+        "grounded": true,
+        "citations": [
+          {
+            "file_name": "biology_ch3.pdf",
+            "page": 12
+          }
+        ],
+        "support": "unchecked",
+        "flagged": false
+      },
+      {
+        "q": "أين تحدث عملية التنفس الخلوي؟",
+        "grounded": true,
+        "citations": [
+          {
+            "file_name": "biology_ch3.pdf",
+            "page": 12
+          }
+        ],
+        "support": "supported",
+        "flagged": false
+      },
+      {
+        "q": "Who won the 1998 football world cup?",
+        "grounded": false,
+        "citations": [],
+        "support": "none",
+        "flagged": false
+      },
+      {
+        "q": "ما هي عاصمة اليابان؟",
+        "grounded": false,
+        "citations": [],
+        "support": "none",
+        "flagged": false
+      }
+    ]
+  }
+}

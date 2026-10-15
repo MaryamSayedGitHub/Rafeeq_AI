@@ -1,0 +1,61 @@
+{# M5: one library item. Needs: a (the asset), room_names. Used by the Library and the studios. #}
+{% set icons = {'pptx': 'presentation', 'code': 'code', 'quiz': 'quiz', 'image': 'image', 'source_video': 'search', 'generated_video': 'sparkle', 'video': 'presentation', 'audio': 'clip', 'theme': 'settings'} %}
+{% set status_badge = {'ready': 'green', 'pending': 'amber', 'failed': 'red'} %}
+<li class="asset-card">
+  <div class="asset-head">{{ icon(icons.get(a.kind, 'file'), 18) }}<span>{{ t('asset.kind.' ~ a.kind) }}</span></div>
+  <h3 dir="auto">{{ a.title }}</h3>
+  <div class="asset-tags">
+    <span class="badge badge-{{ status_badge.get(a.status, 'gray') }}">{{ t('asset.status.' ~ a.status) }}</span>
+    <span class="badge badge-gray">{{ t('asset.origin.' ~ a.origin) }}</span>
+    {% if a.version > 1 %}<span class="badge badge-blue">{{ t('library.version', n=a.version) }}</span>{% endif %}
+  </div>
+  <p class="muted small">
+    {% if a.room_id and room_names.get(a.room_id) %}{{ room_names[a.room_id] }} · {% endif %}<span dir="ltr">{{ a.created_at[:10] }}</span>
+    {% if a.start_sec is not none and a.end_sec is not none %}
+      · {{ t('library.at', a=("%02d:%02d"|format((a.start_sec // 60)|int, (a.start_sec % 60)|int)), b=("%02d:%02d"|format((a.end_sec // 60)|int, (a.end_sec % 60)|int))) }}
+    {% endif %}
+  </p>
+  {% if a.status == 'failed' and a.error %}<p class="small" style="color: var(--red)" dir="auto">{{ a.error }}</p>{% endif %}
+  {% if a.kind in ('generated_video', 'video') and a.file_url %}
+    <video class="video-player" controls preload="metadata" src="{{ u('/assets/' ~ a.asset_id ~ '/file') }}"></video>
+  {% elif a.kind == 'source_video' and yt_embed(a.source_url, a.start_sec, a.end_sec) %}
+    <iframe class="video-embed" src="{{ yt_embed(a.source_url, a.start_sec, a.end_sec) }}" title="{{ a.title }}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  {% elif a.kind == 'image' and a.file_url %}
+    <img class="asset-thumb" src="{{ u('/assets/' ~ a.asset_id ~ '/file') }}" alt="{{ a.title }}" loading="lazy">
+  {% elif a.kind == 'audio' and a.file_url %}
+    <audio class="audio-player" controls preload="none" src="{{ u('/assets/' ~ a.asset_id ~ '/file') }}"></audio>
+  {% elif a.kind == 'theme' %}
+    <div class="swatches" aria-hidden="true">{% for k in ('ink', 'blue', 'blue_soft', 'yellow', 'green', 'paper') %}{% if a.settings.colors and a.settings.colors.get(k) %}<span style="background: {{ a.settings.colors[k] }}"></span>{% endif %}{% endfor %}</div>
+  {% elif a.status == 'pending' %}
+    <p class="muted small">{{ t('library.not_ready') }}</p>
+    {% if a.settings and a.settings.story %}<a class="btn btn-secondary btn-sm" href="{{ u('/story') }}">{{ icon('film', 16) }}<span>{{ t('story.resume') }}</span></a>{% endif %}
+  {% endif %}
+  <div class="asset-actions">
+    {% if a.kind == 'source_video' and a.source_url %}
+      <a class="btn btn-secondary btn-sm" href="{{ a.source_url }}" target="_blank" rel="noopener noreferrer">{{ icon('arrow', 16, 'flip') }}<span>{{ t('library.open_source') }}</span></a>
+    {% endif %}
+    {% if a.file_url %}
+      <a class="btn btn-secondary btn-sm" href="{{ u('/assets/' ~ a.asset_id ~ '/file', download=1) }}">{{ icon('download', 16) }}<span>{{ t('library.download') }}</span></a>
+    {% endif %}
+  </div>
+  {# Use this item in another studio: the id travels in the URL, the other studio does the rest. #}
+  {% if a.status == 'ready' %}
+  <div class="asset-actions asset-use">
+    {% if a.kind in ('image', 'video', 'generated_video', 'audio') and a.file_url %}
+      <a class="btn btn-secondary btn-sm" href="{{ u('/media', asset=a.asset_id) }}">{{ icon('pen', 16) }}<span>{{ t('asset.edit') }}</span></a>
+    {% endif %}
+    {% if a.kind == 'image' and a.file_url %}
+      <a class="btn btn-secondary btn-sm" href="{{ u('/presentations', asset=a.asset_id) }}">{{ icon('presentation', 16) }}<span>{{ t('asset.use_slide') }}</span></a>
+    {% endif %}
+    {% if a.kind == 'pptx' and a.session_id %}
+      <a class="btn btn-secondary btn-sm" href="{{ u('/presentations/open', session=a.session_id) }}">{{ icon('presentation', 16) }}<span>{{ t('asset.open_deck') }}</span></a>
+    {% endif %}
+    {% if a.kind == 'theme' %}
+      <a class="btn btn-secondary btn-sm" href="{{ u('/presentations', theme=a.asset_id) }}">{{ icon('presentation', 16) }}<span>{{ t('asset.use_theme') }}</span></a>
+    {% endif %}
+    {% if a.kind != 'theme' %}
+      <a class="btn btn-secondary btn-sm" href="{{ u('/learning', asset=a.asset_id) }}">{{ icon('book', 16) }}<span>{{ t('asset.add_course') }}</span></a>
+    {% endif %}
+  </div>
+  {% endif %}
+</li>

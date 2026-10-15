@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+{% block title %}{{ t('tab.study') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.study') }}</h1>
+    <p>{{ t('study.intro') }}</p>
+  </div>
+</div>
+
+<div class="study-layout">
+  <section class="panel chat-panel" hx-headers='{"X-Chat-Id": "{{ chat_id }}"}'>
+    <div class="chat-log" id="chat-log" aria-live="polite">
+      {% for turn in saved %}{{ turn.html | safe }}{% endfor %}
+      {% if not saved %}
+      <div class="chat-empty" id="chat-empty">
+        <span class="empty-icon">{{ icon('chat', 26) }}</span>
+        <h3>{{ t('study.empty.title') }}</h3>
+        <p>{{ t('study.empty.text') }}</p>
+        <div class="suggestions">
+          {% for key in ('study.suggest.1', 'study.suggest.2', 'study.suggest.3') %}
+          <button type="button" class="chip" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/message') }}"
+                  hx-vals='{"text": {{ t(key) | tojson }}}' hx-target="#chat-log" hx-swap="beforeend"
+                  hx-indicator="#chat-indicator">{{ t(key) }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="chat-indicator htmx-indicator" id="chat-indicator"><span class="spinner"></span>{{ t('study.thinking') }}</div>
+    <div class="chat-indicator htmx-indicator" id="photo-indicator"><span class="spinner"></span>{{ t('study.reading') }}</div>
+
+    <form class="composer" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/message') }}" hx-target="#chat-log"
+          hx-swap="beforeend" hx-indicator="#chat-indicator" hx-on::after-request="if(event.detail.successful) this.reset()">
+      <input type="hidden" name="mode" value="auto">
+      <label class="sr-only" for="question">{{ t('study.placeholder') }}</label>
+      <textarea class="composer-input" id="question" name="text" rows="1" maxlength="4000" required
+                placeholder="{{ t('study.placeholder') }}" data-submit-on-enter>{{ prefill }}</textarea>
+      <button class="btn btn-primary" type="submit">{{ icon('send', 18, 'back') }}<span>{{ t('study.send') }}</span></button>
+    </form>
+
+    <form class="photo-form" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/photo') }}" hx-encoding="multipart/form-data"
+          hx-target="#chat-log" hx-swap="beforeend" hx-indicator="#photo-indicator"
+          hx-on::after-request="if(event.detail.successful) this.reset()">
+      <label class="photo-pick">
+        {{ icon('clip', 18) }}<span>{{ t('study.attach') }}</span>
+        <input type="file" name="photo" accept="image/png,image/jpeg,image/webp,image/heic" data-photo-input required>
+      </label>
+      <span class="photo-name muted" data-photo-name>{{ t('study.attach_help') }}</span>
+      <button class="btn btn-secondary btn-sm" type="submit">{{ icon('image', 16) }}<span>{{ t('study.read_photo') }}</span></button>
+    </form>
+  </section>
+
+  <aside class="stack">
+  <section class="panel panel-pad tq-chats">
+    <div class="tq-chats-head">
+      <h2 class="panel-title">{{ t('chats.title') }}</h2>
+      <a class="btn btn-primary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/study') }}">{{ icon('plus', 16) }}<span>{{ t('chats.new') }}</span></a>
+    </div>
+    {% if chat_list %}
+    <ul class="tq-chatlist">
+      {% for c in chat_list %}
+      <li class="{{ 'is-open' if c.id == chat_id else '' }}">
+        <a href="{{ u('/rooms/' ~ room.room_id ~ '/study', chat=c.id) }}"><span dir="auto">{{ c.title }}</span><small class="muted">{{ c.updated[:10] }} · {{ c.turns }}</small></a>
+        <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/study/chats/' ~ c.id ~ '/delete') }}" onsubmit="return confirm({{ t('chats.delete_confirm') | tojson | forceescape }})">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <button class="icon-btn" type="submit" title="{{ t('chats.delete') }}" aria-label="{{ t('chats.delete') }}">{{ icon('x_circle', 16) }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted small">{{ t('chats.empty') }}</p>{% endif %}
+  </section>
+
+  <section class="panel panel-pad tq-memory">
+    <h2 class="panel-title">{{ t('memory.title') }}</h2>
+    <p class="muted small">{{ t('memory.note') }}</p>
+    {% if notes %}
+    <ul class="tq-notes">
+      {% for n in notes %}
+      <li>
+        <span dir="auto">{{ n.note }}</span>
+        <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/study/memory/' ~ n.id ~ '/delete') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="chat" value="{{ chat_id }}">
+          <button class="icon-btn" type="submit" title="{{ t('memory.delete') }}" aria-label="{{ t('memory.delete') }}">{{ icon('x_circle', 16) }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted small">{{ t('memory.empty') }}</p>{% endif %}
+    {% if recent %}<p class="muted small"><strong>{{ t('memory.recent') }}:</strong> <span dir="auto">{{ recent | join(' · ') }}</span></p>{% endif %}
+    {% if notes %}
+    <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/study/memory/forget') }}" onsubmit="return confirm({{ t('memory.forget_confirm') | tojson | forceescape }})">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="chat" value="{{ chat_id }}">
+      <button class="btn btn-soft btn-sm" type="submit">{{ t('memory.forget') }}</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="panel panel-pad study-side">
+    {% if my_questions %}
+    <h2 class="panel-title">{{ t('inbox.mine.title') }}</h2>
+    <ul class="teacher-answers">
+      {% for q in my_questions %}
+      <li><p class="q" dir="auto">{{ q.text }}</p>
+        {% if q.status == 'answered' %}<p dir="auto">{{ q.answer }}</p>{% else %}<span class="muted">{{ t('inbox.mine.waiting') }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <h2 class="panel-title">{{ t('study.tip.title') }}</h2>
+    <ul class="tip-list">
+      <li>{{ icon('book', 18) }}<span>{{ t('study.tip.1') }}</span></li>
+      <li>{{ icon('pen', 18) }}<span>{{ t('study.tip.2') }}</span></li>
+      <li>{{ icon('quiz', 18) }}<span>{{ t('study.tip.3') }}</span></li>
+      <li>{{ icon('file', 18) }}<span>{{ t('tutor.tip.deeper') }}</span></li>
+    </ul>
+    <a class="btn btn-soft btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/study-files') }}">{{ icon('folder', 16) }}<span>{{ t('tab.study-files') }}</span></a>
+  </section>
+  </aside>
+</div>
+{% endblock %}

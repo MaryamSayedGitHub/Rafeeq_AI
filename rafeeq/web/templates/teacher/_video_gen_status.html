@@ -1,0 +1,27 @@
+{% if poll_result is not defined %}
+{# just submitted: start polling #}
+<div class="t-warn" hx-get="/teacher/ui/videos/generate/{{ task_id }}?prompt={{ prompt | urlencode }}"
+     hx-trigger="load delay:5s" hx-swap="outerHTML">
+  جاري توليد الفيديو بالموديل <code dir="ltr">{{ model }}</code>… ممكن ياخد دقيقة أو اتنين.
+</div>
+
+{% elif poll_result.status in ("PENDING", "RUNNING") %}
+<div class="t-warn" hx-get="/teacher/ui/videos/generate/{{ task_id }}?prompt={{ prompt | urlencode }}"
+     hx-trigger="load delay:5s" hx-swap="outerHTML">
+  لسه بيتولّد… ({{ poll_result.status }})
+</div>
+
+{% elif poll_result.status == "SUCCEEDED" %}
+<div class="t-card t-ok-box">
+  <p class="t-muted" dir="auto">{{ prompt }}</p>
+  <video controls preload="metadata" class="yt-player" src="{{ poll_result.video_url }}"></video>
+  <p class="t-small t-muted">الرابط صالح لمدة 24 ساعة بس — حمّليه لو عايزة تحتفظي بيه.</p>
+  <a class="t-btn t-btn-light" href="{{ poll_result.video_url }}" download>تحميل الفيديو</a>
+</div>
+
+{% else %}
+<div class="t-error-box t-card">
+  <p class="t-error">تعذّر توليد الفيديو ({{ poll_result.status }}).</p>
+  {% if poll_result.error %}<p class="t-muted">{{ poll_result.error }}</p>{% endif %}
+</div>
+{% endif %}

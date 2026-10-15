@@ -1,0 +1,6 @@
+{
+  "files": [
+    { "file_id": "f_001", "name": "lecture3.pdf", "source": "teacher", "status": "ready" },
+    { "file_id": "f_002", "name": "scan_week2.pdf", "source": "teacher", "status": "indexing" }
+  ]
+}

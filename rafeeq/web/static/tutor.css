@@ -1,0 +1,77 @@
+/* The tutor agent under Ask Rafeeq (M3). Uses the app's own colours (rafeeq.css variables); nothing here has a palette of its own. */
+.tq-quiz, .tq-offer, .tq-help, .tq-box, .tq-solution { margin-block-start: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.tq-offer { background: var(--teal-pale); border-style: dashed; border-color: var(--line-strong); }
+.tq-q { margin-block: 10px 14px; }
+.tq-q p { margin: 0 0 6px; }
+.tq-options { display: grid; gap: 6px; }
+.tq-opt { text-align: start; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: #fff; color: var(--ink); cursor: pointer; font: inherit; }
+.tq-opt:hover:not(:disabled) { border-color: #9bcdbd; background: var(--teal-pale); }
+.tq-opt:disabled { cursor: default; }
+.tq-opt.tq-right { border-color: var(--green); background: var(--green-soft); }
+.tq-opt.tq-wrong { border-color: var(--red); background: var(--red-soft); }
+.tq-fb { min-block-size: 1.2em; margin-block-start: 5px; font-size: 14px; color: var(--muted); }
+.tq-fb.tq-right { color: var(--green); }
+.tq-fb.tq-wrong { color: var(--red); }
+.tq-score { font-weight: 700; color: var(--teal-deep); }
+
+.tq-rewrite-form { margin-block-start: 12px; }
+.tq-other { max-inline-size: 13rem; }
+.tq-rewrite, .tq-hint { margin-block: 8px; padding: 10px 12px; border-radius: 10px; background: var(--amber-soft); color: #5b3f12; }
+.tq-hint strong { display: inline-flex; align-items: center; gap: 6px; }
+.tq-pages { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; }
+.tq-pages .input { inline-size: 5rem; }
+.tq-badges { margin-block-end: 10px; }
+.tq-tools { margin-block-start: 10px; }
+.tq-pre { margin: 0; white-space: pre-wrap; font-family: inherit; }
+
+/* flashcards */
+.tq-deck { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.tq-card { position: relative; min-block-size: 92px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 12px; background: #fff; cursor: pointer; font: inherit; text-align: center; color: var(--ink); }
+.tq-card .tq-back { display: none; color: var(--teal-deep); }
+.tq-card.tq-flipped { background: var(--teal-pale); border-color: #9bcdbd; }
+.tq-card.tq-flipped .tq-front { display: none; }
+.tq-card.tq-flipped .tq-back { display: block; }
+
+/* the three states of a step of the student's work */
+.tq-steps li { grid-template-columns: auto 1fr auto; }
+.tq-steps .tq-step-hint { grid-column: 1 / -1; font-size: 13.5px; color: #5b3f12; display: flex; gap: 6px; align-items: flex-start; }
+.tq-steps .tq-ok .icon { color: var(--green); }
+.tq-steps .tq-check { border-color: #f1d9a8; background: var(--amber-soft); }
+.tq-steps .tq-check .icon { color: var(--amber); }
+.tq-steps .tq-error { border-color: #f0c9c2; background: var(--red-soft); }
+.tq-steps .tq-error .icon { color: var(--red); }
+.tq-legend { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-block: 0 10px; }
+.tq-dot { display: inline-block; inline-size: 10px; block-size: 10px; border-radius: 3px; margin-inline-end: 4px; }
+.tq-dot.tq-ok { background: var(--green); } .tq-dot.tq-check { background: #e69a00; } .tq-dot.tq-error { background: var(--red); }
+.photo-box.tq-box-ok { border-color: var(--green); background: rgba(31, 138, 90, .10); }
+.photo-box.tq-box-check { border-color: #e69a00; background: rgba(230, 154, 0, .14); }
+.photo-box.tq-box-error { border-color: var(--red); background: rgba(190, 52, 40, .14); }
+
+/* study files */
+.tq-files { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.tq-files li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 4px; border-block-end: 1px solid var(--line); flex-wrap: wrap; }
+.tq-doc h1, .tq-doc h2, .tq-doc h3 { margin-block: 18px 8px; }
+.tq-doc p, .tq-doc li { line-height: 1.8; }
+
+/* class insights: what is asked again and again */
+.tq-frequent li { padding-block: 10px; border-block-end: 1px solid var(--line); }
+.tq-frequent .tq-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-block-start: 6px; }
+
+.tq-delete { display: inline; margin: 0; }
+.tq-delete .btn-danger { background: var(--red-soft); color: var(--red); border: 1px solid #f0c9c2; }
+.tq-delete .btn-danger:hover { background: #fbd9d3; }
+
+/* chat history and memory */
+.tq-chats-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-block-end: 8px; }
+.tq-chats-head .panel-title { margin: 0; }
+.tq-chatlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-block-size: 260px; overflow: auto; }
+.tq-chatlist li { display: flex; align-items: center; gap: 6px; border-radius: 10px; padding: 4px 6px; }
+.tq-chatlist li.is-open { background: var(--teal-pale); }
+.tq-chatlist li a { flex: 1; min-inline-size: 0; display: grid; text-decoration: none; color: var(--ink); }
+.tq-chatlist li a span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tq-chatlist form { margin: 0; }
+.tq-memory .field { margin-block-end: 8px; }
+.tq-memory .input { inline-size: 100%; }
+.tq-notes { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 4px; }
+.tq-notes li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 10px; background: var(--teal-pale); font-size: 14px; }
+.tq-notes form { margin: 0; }

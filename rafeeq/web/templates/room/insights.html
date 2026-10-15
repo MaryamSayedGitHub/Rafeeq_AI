@@ -1,0 +1,91 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state, meter %}
+{% block title %}{{ t('tab.insights') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.insights') }}</h1>
+    <p>{{ t('insights.intro') }}</p>
+  </div>
+</div>
+
+<p class="flow-line">{{ icon('trend', 16) }}<span>{{ t('insights.flow') }}</span></p>
+
+<div class="two-col">
+  <section class="panel panel-pad">
+    <h2 class="panel-title">{{ t('insights.questions') }}</h2>
+    <p class="muted small">{{ t('insights.questions.note') }}</p>
+    {% if not insights_res.ok %}
+      {{ section_state(t, insights_res) }}
+    {% elif not cards %}
+      <p class="muted">{{ t('insights.empty') }}</p>
+    {% else %}
+      <ul class="insight-list">
+        {% for c in cards %}
+        <li class="insight">
+          <div class="insight-head">
+            <strong>{{ c.name }}</strong>
+            <span class="badge badge-blue">{{ t('insights.count', n=c.count) }}</span>
+          </div>
+          <p class="insight-example">{{ t('insights.example', q=c.example) }}</p>
+          {% for m in c.mistakes %}
+            <p class="insight-mistake">{{ icon('alert', 14) }}<span>{{ m }}</span></p>
+          {% endfor %}
+          <a class="btn btn-primary btn-sm" href="{{ u(c.href) }}">{{ icon('sparkle', 16) }}<span>{{ t('insights.prepare') }}</span></a>
+        </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+  </section>
+
+  <aside class="stack">
+    {% if frequent %}
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('insights.frequent') }}</h2>
+      <p class="muted small">{{ t('insights.frequent.note') }}</p>
+      <ul class="plain-list tq-frequent">
+        {% for f in frequent %}
+        <li>
+          <strong dir="auto">{{ f.question }}</strong>
+          <div class="tq-meta">
+            <span class="badge badge-blue">{{ f.name }}</span>
+            <span class="badge badge-green">{{ t('insights.frequent.count', n=f.count) }}</span>
+            <span class="badge badge-gray">{{ t('insights.frequent.students', n=f.students) }}</span>
+            {% if f.unanswered %}<span class="badge badge-amber">{{ t('insights.frequent.unanswered', n=f.unanswered) }}</span>{% endif %}
+            {% if f.deeper %}<span class="badge badge-gray">{{ t('insights.frequent.deeper', n=f.deeper) }}</span>{% endif %}
+          </div>
+          <a class="btn btn-soft btn-sm" href="{{ u(f.href) }}">{{ icon('sparkle', 16) }}<span>{{ t('insights.prepare') }}</span></a>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('insights.mastery') }}</h2>
+      {% if report_res.ok %}
+        {% if report_res.data.topics %}
+          <ul class="topic-rows compact">
+            {% for tp in report_res.data.topics | sort(attribute='mastery') %}
+            <li><span class="topic-name">{{ topic_names.get(tp.topic_id, tp.topic_id) }}</span>{{ meter(tp.mastery, tp.status) }}</li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="muted">{{ t('insights.empty') }}</p>
+        {% endif %}
+      {% else %}
+        {{ section_state(t, report_res) }}
+      {% endif %}
+    </section>
+    {% if insights_res.ok and insights_res.data.common_mistakes %}
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('insights.mistakes') }}</h2>
+      <ul class="plain-list">
+        {% for m in insights_res.data.common_mistakes %}
+        <li><strong>{{ topic_names.get(m.topic_id, m.topic_id) }}:</strong> {{ m.description }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

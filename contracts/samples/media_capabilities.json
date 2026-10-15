@@ -1,0 +1,15 @@
+{
+  "image_editing": true,
+  "ffmpeg": true,
+  "speech": true,
+  "voices": [
+    {
+      "voice": "ar-EG-SalmaNeural",
+      "label": "Salma"
+    },
+    {
+      "voice": "en-US-AriaNeural",
+      "label": "Aria"
+    }
+  ]
+}

@@ -1,0 +1,94 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state %}
+{% block title %}{{ t('nav.profile') }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('nav.profile') }}</h1>
+    <p>{{ t('profile.intro') }}</p>
+  </div>
+</div>
+
+{% if not res.ok and not is_new %}
+  <section class="panel panel-pad">{{ section_state(t, res) }}</section>
+{% else %}
+{% set p = profile or {} %}
+{% set d = p.get('defaults', {}) %}
+<div class="two-col">
+  <form class="panel panel-pad form-stack" method="post" action="{{ u('/profile') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    {% if is_new %}<div class="inline-note">{{ icon('info', 16) }}<span>{{ t('profile.new') }}</span></div>{% endif %}
+    <div class="form-grid">
+      <div class="field">
+        <label for="name">{{ t('field.name') }}</label>
+        <input class="input" id="name" name="name" required minlength="2" value="{{ p.get('name', user.name) }}">
+      </div>
+      <div class="field">
+        <label for="title">{{ t('profile.title_field') }}</label>
+        <input class="input" id="title" name="title" value="{{ p.get('title', '') }}" aria-describedby="title-help">
+        <p class="help" id="title-help">{{ t('profile.title_help') }}</p>
+      </div>
+    </div>
+    <div class="field">
+      <label for="subjects">{{ t('profile.subjects') }}</label>
+      <input class="input" id="subjects" name="subjects" value="{{ p.get('subjects', []) | join(', ') }}" aria-describedby="subj-help">
+      <p class="help" id="subj-help">{{ t('profile.subjects_help') }}</p>
+    </div>
+    <div class="field">
+      <label for="bio">{{ t('profile.bio') }}</label>
+      <textarea class="input" id="bio" name="bio" rows="3">{{ p.get('bio', '') }}</textarea>
+    </div>
+    <h2 class="panel-title">{{ t('profile.defaults') }}</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="language">{{ t('studio.language') }}</label>
+        <select class="input" id="language" name="language">
+          {% for lg in ('Arabic', 'English') %}<option value="{{ lg }}" {% if d.get('language', 'Arabic') == lg %}selected{% endif %}>{{ t('lang.' ~ lg) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="student_level">{{ t('studio.level') }}</label>
+        <select class="input" id="student_level" name="student_level">
+          {% for lv in ('beginner', 'intermediate', 'advanced') %}<option value="{{ lv }}" {% if d.get('student_level', 'intermediate') == lv %}selected{% endif %}>{{ t('level.' ~ lv) }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="duration_minutes">{{ t('studio.duration') }}</label>
+        <input class="input" id="duration_minutes" name="duration_minutes" type="number" min="15" max="240" step="5" dir="ltr" value="{{ d.get('duration_minutes', 60) }}">
+      </div>
+      <div class="field">
+        <label for="programming_language">{{ t('studio.programming') }}</label>
+        <input class="input" id="programming_language" name="programming_language" dir="ltr" value="{{ d.get('programming_language', 'python') }}">
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">{{ t('profile.save') }}</button>
+  </form>
+
+  <div class="stack">
+  <section class="panel panel-pad" aria-labelledby="avatar-title">
+    <h2 class="panel-title" id="avatar-title">{{ t('profile.avatar') }}</h2>
+    <p class="muted small">{{ t('profile.avatar_help') }}</p>
+    {% if p.get('avatar_filename') %}
+      <img class="avatar-preview" src="{{ u('/profile/avatar') }}" alt="{{ t('profile.avatar') }}">
+    {% else %}
+      <p class="muted">{{ t('profile.avatar_none') }}</p>
+    {% endif %}
+    <form class="form-stack" method="post" action="{{ u('/profile/avatar') }}" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input class="input" type="file" name="image" accept="image/png,image/jpeg,image/webp" required aria-label="{{ t('profile.avatar') }}">
+      <button class="btn btn-secondary" type="submit">{{ icon('image', 18) }}<span>{{ t('profile.avatar_upload') }}</span></button>
+    </form>
+  </section>
+  <aside class="panel panel-pad">
+    <h2 class="panel-title">{{ t('profile.remembered') }}</h2>
+    {% if p.get('sessions_count') is not none %}<p class="muted small">{{ t('profile.sessions_count', n=p.sessions_count) }}</p>{% endif %}
+    {% if p.get('remembered') %}
+      <ul class="plain-list">{% for r in p.remembered %}<li>{{ r }}</li>{% endfor %}</ul>
+    {% else %}
+      <p class="muted">{{ t('profile.remembered.empty') }}</p>
+    {% endif %}
+  </aside>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

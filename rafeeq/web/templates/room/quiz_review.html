@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state %}
+{% block title %}{{ t('history.review') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('history.review') }}</h1>
+    {% if review %}<p><span dir="ltr">{{ review.submitted_at[:10] }}</span> · {{ t('practice.score', score=review.correct, total=review.total) }}</p>{% endif %}
+  </div>
+  <a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/progress') }}">{{ icon('arrow', 16, 'back') }}<span>{{ t('history.back') }}</span></a>
+</div>
+
+{% if not review %}
+  <section class="panel panel-pad">{{ section_state(t, res) }}</section>
+{% else %}
+  {% set wrong = review.questions | rejectattr('correct') | list %}
+  {% if not wrong %}
+    <div class="inline-note note-success">{{ icon('check_circle', 16) }}<span>{{ t('history.all_correct') }}</span></div>
+  {% else %}
+    <div class="inline-note">{{ icon('info', 16) }}<span>{{ t('history.wrong_count', n=wrong | length) }}</span></div>
+  {% endif %}
+  <ol class="review-list stack">
+    {% for q in (wrong + (review.questions | selectattr('correct') | list)) %}
+    <li class="panel panel-pad">
+      <strong dir="auto">{{ q.text }}</strong>
+      <ul class="choices">
+        {% for o in q.options %}
+        {% set is_right = loop.index0 == q.right_choice %}
+        {% set is_mine = loop.index0 == q.chosen %}
+        <li class="choice {{ 'is-correct' if is_right else 'is-wrong' if is_mine else '' }}">
+          {% if is_right or is_mine %}{{ icon('check_circle' if is_right else 'x_circle', 16) }}{% endif %}
+          <span dir="auto">{{ o }}</span>
+          {% if is_mine %}<small class="muted">· {{ t('history.your_pick') }}</small>{% endif %}
+          {% if is_right %}<small class="muted">· {{ t('history.right') }}</small>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% if q.chosen is none %}<p class="muted">{{ t('history.skipped') }}</p>{% endif %}
+      {% if q.explanation %}<p>{{ q.explanation }}</p>{% endif %}
+      {% if q.file_name %}
+      <a class="source-chip" href="{{ u('/rooms/' ~ room.room_id ~ '/source', file_name=q.file_name, page=q.page) }}">{{ icon('file', 14) }}<span dir="ltr">{{ q.file_name }}</span><span>· {{ t('answer.page', page=q.page) }}</span></a>
+      {% endif %}
+      {% if not q.correct %}
+      <a class="btn btn-soft btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/practice', topic=q.topic_id) }}">{{ icon('quiz', 16) }}<span>{{ t('progress.practice_topic') }}{% if topic_names.get(q.topic_id) %}: {{ topic_names[q.topic_id] }}{% endif %}</span></a>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+{% endif %}
+{% endblock %}

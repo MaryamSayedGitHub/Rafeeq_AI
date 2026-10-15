@@ -1,0 +1,1 @@
+"""Evaluation of retrieval and grounded answering. Read-only with respect to the vector store."""

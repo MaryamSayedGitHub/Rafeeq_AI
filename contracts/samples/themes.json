@@ -1,0 +1,43 @@
+{
+  "presets": [
+    {
+      "theme_id": "preset:rafeeq",
+      "name": "Rafeeq",
+      "font": "Segoe UI",
+      "colors": {
+        "ink": "#1B2540",
+        "ink_soft": "#4A5572",
+        "paper": "#F3F5F9",
+        "line": "#D5DAE5",
+        "blue": "#3A5BD9",
+        "blue_soft": "#E4EAFB",
+        "yellow": "#FFE066",
+        "green": "#1F7A4D",
+        "green_soft": "#DDF3E7",
+        "code_bg": "#12182B",
+        "code_text": "#E6EAF5"
+      }
+    }
+  ],
+  "custom": [
+    {
+      "theme_id": "a_3be10c77",
+      "asset_id": "a_3be10c77",
+      "name": "School brand",
+      "font": "Cairo",
+      "colors": {
+        "ink": "#1B2540",
+        "ink_soft": "#4A5572",
+        "paper": "#F3F5F9",
+        "line": "#D5DAE5",
+        "blue": "#087F73",
+        "blue_soft": "#E4EAFB",
+        "yellow": "#FFE066",
+        "green": "#1F7A4D",
+        "green_soft": "#DDF3E7",
+        "code_bg": "#12182B",
+        "code_text": "#E6EAF5"
+      }
+    }
+  ]
+}

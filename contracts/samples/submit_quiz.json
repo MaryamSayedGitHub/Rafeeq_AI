@@ -1,0 +1,14 @@
+{
+  "score": 1,
+  "total": 2,
+  "explanations": [
+    "إجابة صحيحة. الميتوكوندريا تنتج الطاقة.",
+    "الإجابة الصحيحة هي ATP، وليس DNA."
+  ],
+  "mastery_change": [
+    {
+      "topic_id": "t_energy",
+      "change": 0.1
+    }
+  ]
+}

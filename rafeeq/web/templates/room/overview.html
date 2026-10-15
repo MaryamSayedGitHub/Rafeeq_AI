@@ -1,0 +1,107 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state, meter, copy_code %}
+{% block title %}{{ t('tab.overview') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ room.name }}</h1>
+    <p>{{ t('overview.intro') }}</p>
+  </div>
+</div>
+
+<section class="panel panel-pad">
+  <form class="btn-row" method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/rename') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="next" value="/rooms/{{ room.room_id }}/overview">
+    <label for="room_name">{{ t('room.rename') }}</label>
+    <input class="input" id="room_name" name="name" value="{{ room.name }}" maxlength="100" required>
+    <button class="btn btn-secondary btn-sm" type="submit">{{ t('room.rename_save') }}</button>
+    <small class="muted">{{ t('room.rename_hint') }}</small>
+  </form>
+</section>
+
+{% if created and join_code %}
+<section class="panel panel-pad created-banner" role="status">
+  <div>
+    <h2>{{ icon('check_circle', 20) }} {{ t('rooms.created.title') }}</h2>
+    <p>{{ t('rooms.created.text') }}</p>
+  </div>
+  {{ copy_code(t, join_code) }}
+</section>
+{% endif %}
+
+{# 1. What is happening #}
+<div class="stat-grid">
+  {% for key, ic, value, extra in [
+      ('students', 'users', stats.students, None),
+      ('files', 'folder', stats.files_ready, t('overview.of_total', n=stats.files_total) if stats.files_ready is not none else None),
+      ('questions', 'chat', stats.questions, None),
+      ('at_risk', 'alert', stats.at_risk, None)] %}
+  <article class="stat">
+    <span class="stat-icon">{{ icon(ic, 20) }}</span>
+    <div>
+      <div class="stat-label">{{ t('overview.stat.' ~ key) }}</div>
+      <div class="stat-value" dir="ltr">{{ value if value is not none else '—' }}</div>
+      {% if extra %}<div class="stat-note">{{ extra }}</div>{% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+
+<div class="two-col">
+  {# 2. What needs attention #}
+  <section class="panel panel-pad">
+    <h2 class="panel-title">{{ t('overview.attention') }}</h2>
+    {% if attention %}
+      <ul class="attention">
+        {% for a in attention %}
+        <li>
+          <span class="attention-icon tone-{{ a.tone }}">{{ icon(a.icon, 18) }}</span>
+          <div>
+            <p>{{ a.text }}</p>
+            {% if a.code %}{{ copy_code(t, a.code) }}{% endif %}
+            {% if a.href %}<a class="btn btn-secondary btn-sm" href="{{ u(a.href) }}">{{ a.action }}</a>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{{ t('overview.nothing') }}</p>
+    {% endif %}
+  </section>
+
+  {# 3. What to do next #}
+  <aside class="stack">
+    <section class="panel panel-pad next-card is-accent">
+      <h2 class="panel-title">{{ icon('sparkle', 18) }} {{ t('overview.next') }}</h2>
+      <p class="next-text">{{ next_step.text }}</p>
+      {% if next_step.href %}<a class="btn btn-light" href="{{ u(next_step.href) }}">{{ next_step.action }}</a>{% endif %}
+    </section>
+    {% if join_code %}
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('overview.join_code') }}</h2>
+      <p class="muted small">{{ t('overview.join_code_help') }}</p>
+      {{ copy_code(t, join_code) }}
+    </section>
+    {% endif %}
+  </aside>
+</div>
+
+<section class="panel panel-pad">
+  <h2 class="panel-title">{{ t('overview.topics') }}</h2>
+  {% if report_res.ok %}
+    {% if report_res.data.topics %}
+      <ul class="topic-rows">
+        {% for tp in report_res.data.topics | sort(attribute='mastery') %}
+        <li><span class="topic-name">{{ topic_names.get(tp.topic_id, tp.topic_id) }}</span>{{ meter(tp.mastery, tp.status) }}
+            <span class="badge badge-{{ {'on_track':'green','watch':'amber','struggling':'red'}[tp.status] }}">{{ t('student_status.' ~ tp.status) }}</span></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{{ t('insights.empty') }}</p>
+    {% endif %}
+  {% else %}
+    {{ section_state(t, report_res) }}
+  {% endif %}
+</section>
+{% endblock %}

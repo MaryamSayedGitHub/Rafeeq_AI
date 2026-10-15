@@ -1,0 +1,110 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state %}
+{% block title %}{{ t('tab.studio') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.studio') }}</h1>
+    <p>{{ t('studio.intro') }}</p>
+  </div>
+</div>
+<div class="inline-note">{{ icon('info', 16) }}<span>{{ t('studio.other_studios') }}</span></div>
+
+<div class="studio-layout">
+  <section class="panel panel-pad">
+    <h2 class="panel-title">{{ t('studio.new') }}</h2>
+    {% if prefill.from_insights %}
+      <div class="inline-note">{{ icon('chart', 16) }}<span>{{ t('studio.from_insights') }}</span></div>
+    {% endif %}
+    <form class="form-stack" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/studio/sessions') }}" hx-target="#session-area" hx-indicator="#studio-indicator">
+      <div class="field">
+        <label for="topic">{{ t('studio.topic') }}</label>
+        <input class="input" id="topic" name="topic" required minlength="2" maxlength="200" value="{{ prefill.topic }}">
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label for="course_name">{{ t('studio.course') }}</label>
+          <input class="input" id="course_name" name="course_name" value="{{ room.name }}">
+        </div>
+        <div class="field">
+          <label for="student_level">{{ t('studio.level') }}</label>
+          <select class="input" id="student_level" name="student_level">
+            {% for lv in ('beginner', 'intermediate', 'advanced') %}
+            <option value="{{ lv }}" {% if defaults.get('student_level', 'intermediate') == lv %}selected{% endif %}>{{ t('level.' ~ lv) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="duration_minutes">{{ t('studio.duration') }}</label>
+          <input class="input" id="duration_minutes" name="duration_minutes" type="number" min="15" max="240" step="5" dir="ltr" value="{{ defaults.get('duration_minutes', 60) }}">
+        </div>
+        <div class="field">
+          <label for="language">{{ t('studio.language') }}</label>
+          <select class="input" id="language" name="language">
+            {% for lg in ('Arabic', 'English') %}
+            <option value="{{ lg }}" {% if defaults.get('language', 'Arabic') == lg %}selected{% endif %}>{{ t('lang.' ~ lg) }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <fieldset class="field">
+        <legend>{{ t('studio.needs') }}</legend>
+        <div class="check-row">
+          {% for n in ('slides', 'quiz', 'code') %}
+          <label class="check-pill"><input type="checkbox" name="needs" value="{{ n }}" {% if n in ('slides', 'quiz') %}checked{% endif %} {% if n == 'code' %}data-toggles="#code-lang"{% endif %}><span>{{ t('need.' ~ n) }}</span></label>
+          {% endfor %}
+        </div>
+      </fieldset>
+      <div class="form-grid">
+        <div class="field">
+          <label for="num_quiz_questions">{{ t('studio.questions_count') }}</label>
+          <input class="input" id="num_quiz_questions" name="num_quiz_questions" type="number" min="1" max="20" value="5" dir="ltr">
+        </div>
+        <div class="field" id="code-lang" hidden>
+          <label for="programming_language">{{ t('studio.programming') }}</label>
+          <input class="input" id="programming_language" name="programming_language" dir="ltr" value="{{ defaults.get('programming_language', 'python') }}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="learning_objectives">{{ t('studio.objectives') }} <span class="muted">({{ t('optional') }})</span></label>
+        <textarea class="input" id="learning_objectives" name="learning_objectives" rows="3" aria-describedby="obj-help"></textarea>
+        <p class="help" id="obj-help">{{ t('studio.objectives_help') }}</p>
+      </div>
+      <div class="field">
+        <label for="notes">{{ t('studio.notes') }} <span class="muted">({{ t('optional') }})</span></label>
+        <textarea class="input" id="notes" name="notes" rows="4" aria-describedby="notes-help">{{ prefill.notes }}</textarea>
+        <p class="help" id="notes-help">{{ t('studio.notes_help') }}</p>
+      </div>
+      <button class="btn btn-primary" type="submit">{{ icon('sparkle', 18) }}<span>{{ t('studio.generate') }}</span></button>
+      <div class="htmx-indicator inline-loading" id="studio-indicator"><span class="spinner"></span>{{ t('studio.generating') }}</div>
+    </form>
+  </section>
+
+  <div class="stack">
+    <div id="session-area">
+      <section class="panel draft-placeholder">
+        <span class="empty-icon">{{ icon('presentation', 26) }}</span>
+        <h3>{{ t('studio.draft_here') }}</h3>
+        <p>{{ t('studio.draft_here_text') }}</p>
+      </section>
+    </div>
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('studio.past') }}</h2>
+      {% if not sessions_res.ok %}
+        {{ section_state(t, sessions_res) }}
+      {% elif not past %}
+        <p class="muted">{{ t('studio.past.empty') }}</p>
+      {% else %}
+        <ul class="session-list">
+          {% for s in past %}
+          <li>
+            <div><strong>{{ s.topic }}</strong>{% if s.created_at %}<small dir="ltr">{{ s.created_at[:10] }}</small>{% endif %}</div>
+            <a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/studio/sessions/' ~ s.session_id) }}">{{ t('session.open') }}</a>
+          </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

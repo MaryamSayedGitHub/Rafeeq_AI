@@ -1,0 +1,18 @@
+{# Hints one click at a time, then the full solution. Needs `key`. `solution_only`: the work is right, so only offer the model solution. #}
+<section class="tq-help">
+  {% if not solution_only %}
+    <h4 class="bubble-sub">{{ icon('bulb', 16) }} {{ t('tutor.help.title') }}</h4>
+    <p class="muted small">{{ t('tutor.help.try_first') }}</p>
+  {% endif %}
+  <div id="help-{{ key }}-list"></div>
+  <div id="help-{{ key }}-step" class="btn-row">
+    {% if solution_only %}
+      <button class="btn btn-secondary btn-sm" type="button" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/agent') }}" hx-vals='{"action": "solution", "key": "{{ key }}"}'
+              hx-target="#help-{{ key }}-step" hx-swap="outerHTML" hx-indicator="#help-{{ key }}-wait">{{ t('tutor.help.show_solution') }}</button>
+    {% else %}
+      <button class="btn btn-primary btn-sm" type="button" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/agent') }}" hx-vals='{"action": "hint", "key": "{{ key }}", "n": 1}'
+              hx-target="#help-{{ key }}-step" hx-swap="outerHTML" hx-indicator="#help-{{ key }}-wait">{{ t('tutor.help.hint_btn', n=1) }}</button>
+    {% endif %}
+  </div>
+  <div class="chat-indicator htmx-indicator" id="help-{{ key }}-wait"><span class="spinner"></span>{{ t('tutor.help.working') }}</div>
+</section>

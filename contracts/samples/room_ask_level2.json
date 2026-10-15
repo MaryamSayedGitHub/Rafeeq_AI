@@ -1,0 +1,32 @@
+{
+  "question_id": 18,
+  "topic_id": "other",
+  "level": 2,
+  "answer": "الخلية هي وحدة بناء الكائن الحي ...",
+  "citations": [],
+  "grounded": true,
+  "steps": [],
+  "offer_level2": false,
+  "material_source": "web",
+  "study_file": {
+    "id": 3,
+    "title": "ما هي الخلية؟",
+    "markdown": "# ما هي الخلية؟\n\n## Overview\nالخلية هي وحدة بناء الكائن الحي [1].\n\n## Key ideas\n- لها غشاء ونواة [1].\n\n## Worked example\n**Problem:** ...\n\n## Sources\n1. [Cell biology](https://example.org/cell)\n",
+    "words": 38,
+    "degraded": false,
+    "sources": [
+      {
+        "n": 1,
+        "title": "Cell biology",
+        "url": "https://example.org/cell"
+      }
+    ],
+    "queries": [
+      "ما هي الخلية",
+      "cell structure worked example"
+    ]
+  },
+  "quiz": [],
+  "error": null,
+  "event_delivered": true
+}

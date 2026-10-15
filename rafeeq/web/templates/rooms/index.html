@@ -1,0 +1,84 @@
+{% extends "layout.html" %}
+{% from "macros.html" import empty_state %}
+{% block title %}{{ t('rooms.title') }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('rooms.title') }}</h1>
+    <p>{{ t('rooms.intro.' ~ user.role) }}</p>
+  </div>
+</div>
+
+{% if error %}<div class="notice notice-error" role="alert">{{ icon('alert', 18) }}<p>{{ error }}</p></div>{% endif %}
+
+{% macro join_form(compact=False) %}
+<form method="post" action="{{ u('/rooms/join') }}" class="inline-form {% if compact %}is-compact{% endif %}">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <label class="sr-only" for="code">{{ t('rooms.join.label') }}</label>
+  <input class="input code-input" id="code" name="code" dir="ltr" autocomplete="off" required
+         placeholder="{{ t('rooms.join.placeholder') }}" value="{{ code or '' }}" {% if join_error %}aria-invalid="true" aria-describedby="join-error"{% endif %}>
+  <button class="btn btn-primary" type="submit">{{ t('rooms.join.submit') }}</button>
+</form>
+{% if join_error %}<p class="field-error" id="join-error" role="alert">{{ join_error }}</p>{% endif %}
+{% endmacro %}
+
+{% macro create_form() %}
+<form method="post" action="{{ u('/rooms/create') }}" class="inline-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <label class="sr-only" for="room-name">{{ t('rooms.create.label') }}</label>
+  <input class="input" id="room-name" name="name" required maxlength="100"
+         placeholder="{{ t('rooms.create.placeholder') }}" value="{{ name or '' }}" {% if create_error %}aria-invalid="true"{% endif %}>
+  <button class="btn btn-primary" type="submit">{{ icon('plus', 18) }}<span>{{ t('rooms.create.submit') }}</span></button>
+</form>
+{% if create_error %}<p class="field-error" role="alert">{{ create_error }}</p>{% endif %}
+{% endmacro %}
+
+{% if not rooms and rooms_res.ok %}
+  {# First visit: explain the journey instead of dropping the user into a demo #}
+  <section class="panel onboarding">
+    {% if user.role == 'student' %}
+      <div class="onboarding-copy">
+        <span class="empty-icon">{{ icon('key', 26) }}</span>
+        <h2>{{ t('rooms.empty_student.title') }}</h2>
+        <p>{{ t('rooms.empty_student.text') }}</p>
+        <ol class="steps">
+          <li><span>1</span>{{ t('rooms.step.1') }}</li>
+          <li><span>2</span>{{ t('rooms.step.2') }}</li>
+          <li><span>3</span>{{ t('rooms.step.3') }}</li>
+        </ol>
+      </div>
+      <div class="onboarding-action">
+        <label class="field-label" for="code">{{ t('rooms.join.label') }}</label>
+        {{ join_form() }}
+      </div>
+    {% else %}
+      <div class="onboarding-copy">
+        <span class="empty-icon">{{ icon('door', 26) }}</span>
+        <h2>{{ t('rooms.empty_teacher.title') }}</h2>
+        <p>{{ t('rooms.empty_teacher.text') }}</p>
+      </div>
+      <div class="onboarding-action">
+        <label class="field-label" for="room-name">{{ t('rooms.create.label') }}</label>
+        {{ create_form() }}
+      </div>
+    {% endif %}
+  </section>
+{% elif rooms %}
+  <div class="room-grid">
+    {% for r in rooms %}
+    <a class="room-card" href="{{ u('/rooms/' ~ r.room_id) }}">
+      <span class="room-card-icon">{{ icon('book', 22) }}</span>
+      <span class="room-card-main">
+        <strong>{{ r.name }}</strong>
+        <small>{{ t('rooms.files_ready', n=r.files_ready) }}</small>
+      </span>
+      <span class="room-card-go">{{ icon('arrow', 18, 'flip') }}</span>
+    </a>
+    {% endfor %}
+  </div>
+  <section class="panel panel-pad add-room">
+    <h2 class="panel-title">{{ t('rooms.join.another') if user.role == 'student' else t('rooms.create.new') }}</h2>
+    {% if user.role == 'student' %}{{ join_form(True) }}{% else %}{{ create_form() }}{% endif %}
+  </section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,29 @@
+{
+  "sessions": [
+    {
+      "session_id": "5f0c2a9e1b7d4c3a8e6f1d2b3c4a5e6f",
+      "topic": "Python functions",
+      "course_name": "أحياء 101 - د. منى",
+      "room_id": "r_bio101",
+      "created_at": "2026-10-08T18:30:00+00:00",
+      "files": [
+        {
+          "name": "python-functions.pptx",
+          "url": "/teacher/sessions/5f0c2a9e1b7d4c3a8e6f1d2b3c4a5e6f/files/python-functions.pptx"
+        },
+        {
+          "name": "python-functions_examples.py",
+          "url": "/teacher/sessions/5f0c2a9e1b7d4c3a8e6f1d2b3c4a5e6f/files/python-functions_examples.py"
+        },
+        {
+          "name": "quiz.json",
+          "url": "/teacher/sessions/5f0c2a9e1b7d4c3a8e6f1d2b3c4a5e6f/files/quiz.json"
+        },
+        {
+          "name": "quiz.md",
+          "url": "/teacher/sessions/5f0c2a9e1b7d4c3a8e6f1d2b3c4a5e6f/files/quiz.md"
+        }
+      ]
+    }
+  ]
+}

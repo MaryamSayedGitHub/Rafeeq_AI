@@ -1,0 +1,20 @@
+{
+  "top_questions": [
+    {
+      "topic_id": "t_energy",
+      "count": 14,
+      "example": "ما وظيفة الميتوكوندريا؟"
+    },
+    {
+      "topic_id": "t_genetics",
+      "count": 9,
+      "example": "ما الفرق بين الجين والكروموسوم؟"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "topic_id": "t_energy",
+      "description": "الخلط بين ATP و DNA"
+    }
+  ]
+}

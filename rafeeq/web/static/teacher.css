@@ -1,0 +1,117 @@
+/* Teacher pages (M5). Uses the colors of app.css. Logical properties keep it right for RTL. */
+:root { --t-blue: #3a5bd9; --t-green: #1f7a4d; --t-red: #b42318; --t-amber: #b7791f; --t-muted: #5b6475; }
+
+.t-card { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 1.25rem; margin-block-end: 1rem; }
+.t-card h1 { margin-block: 0 .25rem; font-size: 1.5rem; color: var(--navy); }
+.t-card h2 { margin-block: 0 .5rem; font-size: 1.2rem; color: var(--navy); }
+.t-card h3 { font-size: 1rem; margin-block: 1rem .5rem; }
+.t-muted { color: var(--t-muted); }
+.t-small { font-size: .85rem; }
+.t-grow { flex: 1 1 14rem; }
+.t-link { color: var(--t-blue); }
+
+.t-warn { background: #fff7e6; border: 1px solid #f3d19c; color: #7a4d00; padding: .75rem 1rem; border-radius: 10px; }
+.t-error { color: var(--t-red); }
+.t-error-box { border-color: #f1b5ae; background: #fff5f4; }
+
+/* profile */
+.t-profile { display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap; }
+.t-avatar { inline-size: 64px; block-size: 64px; border-radius: 50%; background: var(--navy); color: #fff;
+  display: grid; place-items: center; font-size: 1.8rem; font-weight: 700; flex: none; }
+.t-chips { display: flex; flex-wrap: wrap; gap: .4rem; list-style: none; padding: 0; margin: .4rem 0; }
+.t-chips li { background: #eef1fb; color: var(--navy); border-radius: 999px; padding: .15rem .7rem; font-size: .85rem; }
+.t-memory summary { cursor: pointer; font-weight: 600; color: var(--navy); }
+
+/* forms */
+.t-form { display: grid; gap: .75rem; }
+.t-form label { display: grid; gap: .3rem; font-weight: 600; font-size: .92rem; }
+.t-form small { font-weight: 400; color: var(--t-muted); }
+.t-form input, .t-form select, .t-form textarea, .t-revise textarea {
+  font: inherit; padding: .55rem .7rem; border: 1px solid var(--line); border-radius: 8px; background: #fff; inline-size: 100%; box-sizing: border-box; }
+.t-row { display: flex; flex-wrap: wrap; gap: .75rem; }
+.t-row > label { flex: 1 1 9rem; }
+.t-form fieldset { border: 1px solid var(--line); border-radius: 10px; padding: .75rem; }
+.t-needs { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+.t-needs label { display: flex; gap: .4rem; align-items: center; }
+.t-num { inline-size: 4.5rem !important; }
+.t-form details summary { cursor: pointer; color: var(--t-blue); margin-block-end: .5rem; }
+.t-form details label { margin-block-end: .6rem; }
+.t-actions { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+
+.t-btn { font: inherit; font-weight: 600; background: var(--navy); color: #fff; border: 0; border-radius: 10px;
+  padding: .6rem 1.2rem; cursor: pointer; text-decoration: none; display: inline-block; }
+.t-btn:disabled { opacity: .55; cursor: wait; }
+.t-btn-light { background: #eef1fb; color: var(--navy); }
+
+.htmx-indicator { display: none; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
+
+/* review */
+.t-review { border-color: var(--t-blue); }
+.t-review-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.t-outline li { margin-block: .2rem; }
+.t-slides { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .75rem; }
+.t-slide { position: relative; border: 1px solid var(--line); border-radius: 12px; padding: .9rem; background: #fbfcff; }
+.t-slide h4 { margin: 0 0 .4rem; color: var(--navy); padding-inline-end: 2rem; }
+.t-slide ul { margin: 0; padding-inline-start: 1.1rem; }
+.t-slide-n { position: absolute; inset-inline-end: .7rem; inset-block-start: .7rem; background: var(--t-blue); color: #fff;
+  border-radius: 6px; font-size: .8rem; padding: .05rem .45rem; }
+.t-flow { display: flex; flex-wrap: wrap; gap: .3rem; list-style: none; padding: 0; margin: .6rem 0 0; counter-reset: s; }
+.t-flow li { background: #e8edff; border-radius: 6px; padding: .15rem .5rem; font-size: .8rem; }
+.t-flow li:not(:last-child)::after { content: " ←"; color: var(--t-blue); }
+[dir="ltr"] .t-flow li:not(:last-child)::after, .t-flow[dir="ltr"] li:not(:last-child)::after { content: " →"; }
+
+.t-code { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-block-end: .75rem; }
+.t-code-head { display: flex; justify-content: space-between; gap: .5rem; padding: .6rem .9rem; background: #f6f7fb; flex-wrap: wrap; }
+.t-code pre { margin: 0; padding: .9rem; background: #12182b; color: #e6e9f2; overflow-x: auto; font-family: Consolas, monospace; font-size: .88rem; text-align: left; }
+.t-code pre.t-output { background: #0d2a1d; color: #b9f3cf; }
+.t-code p { margin: .6rem .9rem; }
+
+.t-quiz > li { margin-block-end: .9rem; }
+.t-quiz ul { list-style: none; padding: 0; display: grid; gap: .3rem; }
+.t-quiz ul li { border: 1px solid var(--line); border-radius: 8px; padding: .35rem .6rem; }
+.t-quiz ul li.t-correct { border-color: var(--t-green); background: #eaf6ef; font-weight: 600; }
+
+.t-decide { display: grid; gap: .75rem; border-block-start: 1px solid var(--line); padding-block-start: 1rem; margin-block-start: 1rem; }
+.t-revise { display: grid; gap: .5rem; }
+.t-revise .t-btn { justify-self: start; }
+
+.t-badge { display: inline-block; font-size: .75rem; font-weight: 600; border-radius: 999px; padding: .1rem .6rem; background: #eef1fb; color: var(--navy); vertical-align: middle; }
+.t-ok { background: #eaf6ef; color: var(--t-green); }
+.t-bad { background: #fdecea; color: var(--t-red); }
+
+/* sessions + files */
+.t-sessions { list-style: none; padding: 0; margin: 0; }
+.t-sessions li { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding-block: .7rem; border-block-end: 1px solid var(--line); }
+.t-sessions li:last-child { border-block-end: 0; }
+.t-files { display: flex; flex-wrap: wrap; gap: .4rem; }
+.t-file { font-size: .85rem; direction: ltr; background: #eef1fb; color: var(--navy); border-radius: 8px; padding: .25rem .6rem; text-decoration: none; }
+.t-file-big { font-size: 1rem; padding: .5rem .9rem; }
+.t-file:hover { background: var(--navy); color: #fff; }
+
+/* class */
+.t-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1.5rem; }
+.t-bars { list-style: none; padding: 0; display: grid; gap: .5rem; }
+.t-bars li { display: grid; grid-template-columns: 7rem 1fr 3rem; gap: .5rem; align-items: center; }
+.t-bar { block-size: .6rem; background: #eef1fb; border-radius: 999px; overflow: hidden; }
+.t-fill { display: block; block-size: 100%; }
+.t-on_track { background: var(--t-green); }
+.t-watch { background: var(--t-amber); }
+.t-struggling { background: var(--t-red); }
+
+/* video discovery (YouTube) */
+.yt-wrap { margin-block-end: 1rem; }
+.yt-player { border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; inline-size: 100%; }
+.yt-controls { margin-block-start: .6rem; }
+.yt-list { margin-block-start: .5rem; }
+.yt-result { cursor: pointer; align-items: center; }
+.yt-result:hover { background: #fbfcff; }
+.yt-result.yt-active { background: #eef1fb; border-radius: 10px; }
+.yt-thumb { inline-size: 120px; block-size: 68px; object-fit: cover; border-radius: 8px; flex: none; }
+
+/* video generation (Lab 5) */
+.t-ok-box { border-color: var(--t-green); background: #f3fbf6; }
+video.yt-player { display: block; margin-block: .5rem; background: #000; }
+
+/* teacher avatar (Lab 5 persona) */
+.t-avatar-preview { display: block; inline-size: 96px; block-size: 96px; object-fit: cover; border-radius: 10px; margin-block: .4rem; border: 1px solid var(--line); }

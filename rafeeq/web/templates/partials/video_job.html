@@ -1,0 +1,22 @@
+{# M5: one animated-video job. While it runs, this fragment reloads itself every 5 s. #}
+{% set status = job.status if job else 'PENDING' %}
+{% set poll = u((poll_base or '/media/video/generate/') ~ task_id) ~ '?prompt=' ~ (prompt | urlencode) %}
+{% if status in ('PENDING', 'RUNNING') %}
+<div class="video-job" hx-get="{{ poll }}" hx-trigger="load delay:5s" hx-swap="outerHTML">
+  <div class="inline-loading" style="display:flex"><span class="spinner"></span>{{ t('video.running') }}</div>
+  {% if used_avatar %}<p class="muted small">{{ t('video.used_avatar') }}</p>{% endif %}
+</div>
+{% elif status == 'SUCCEEDED' and job.video_url %}
+<div class="video-job">
+  <h3 class="small">{{ t('video.done') }}</h3>
+  {% if prompt %}<p class="muted small" dir="auto">{{ prompt }}</p>{% endif %}
+  <video class="video-player" controls preload="metadata" src="{{ job.video_url }}"></video>
+  <p class="help">{{ t('video.saved') if saved else t('video.expires') }}</p>
+  <div class="asset-actions">
+    <a class="btn btn-secondary btn-sm" href="{{ job.video_url }}" download target="_blank" rel="noopener">{{ icon('download', 16) }}<span>{{ t('video.download') }}</span></a>
+    {% if edit_url %}<a class="btn btn-secondary btn-sm" href="{{ edit_url }}">{{ icon('pen', 16) }}<span>{{ t('asset.edit') }}</span></a>{% endif %}
+  </div>
+</div>
+{% else %}
+  {% with text=t('video.failed') ~ (' ' ~ job.error if job and job.error else ''), kind='warning' %}{% include "partials/notice.html" %}{% endwith %}
+{% endif %}

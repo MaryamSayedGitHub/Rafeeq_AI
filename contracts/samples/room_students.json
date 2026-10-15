@@ -1,0 +1,6 @@
+{
+  "students": [
+    { "user_id": "u_1", "name": "سارة أحمد", "questions_this_week": 9, "mastery": 0.35, "status": "struggling" },
+    { "user_id": "u_2", "name": "عمر خالد", "questions_this_week": 4, "mastery": 0.52, "status": "watch" }
+  ]
+}

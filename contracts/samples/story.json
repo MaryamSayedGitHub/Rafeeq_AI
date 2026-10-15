@@ -1,0 +1,29 @@
+{
+  "asset_id": "a_7b3c2d10",
+  "title": "How plants grow",
+  "status": "pending",
+  "error": "",
+  "scene_count": 2,
+  "scenes_done": 1,
+  "style": "flat",
+  "topic": "How plants grow",
+  "voice": "ar-EG-SalmaNeural",
+  "fade": true,
+  "vision": false,
+  "narrated": false,
+  "scenes": [
+    {
+      "n": 1,
+      "state": "done",
+      "narration": "البذرة تحت التراب",
+      "visual": "A seed in dark soil"
+    },
+    {
+      "n": 2,
+      "state": "running",
+      "narration": "تخرج الجذور",
+      "visual": "Roots grow downward"
+    }
+  ],
+  "file_url": null
+}

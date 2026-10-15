@@ -1,0 +1,77 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state, meter %}
+{% block title %}{{ t('tab.progress') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.progress') }}</h1>
+    <p>{{ t('progress.intro') }}</p>
+  </div>
+</div>
+
+<div class="two-col">
+  <section class="panel panel-pad">
+    <h2 class="panel-title">{{ t('scores.title') }}</h2>
+    <p class="muted">{{ t('scores.help') }}</p>
+    {% if scores_res.ok %}
+      {% if scores %}
+        <ul class="topic-rows">
+          {% for s in scores %}
+          <li>
+            <span class="topic-name">{{ topic_names.get(s.topic_id, s.topic_id) }}<small class="muted"> · {{ t('scores.quizzes', n=s.quizzes) }}</small></span>
+            {{ meter(s.average) }}
+            {% if s.weak %}<a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/practice', topic=s.topic_id) }}">{{ t('progress.practice_topic') }}</a>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="muted">{{ t('scores.empty') }}</p>
+        <a class="btn btn-primary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/practice') }}">{{ icon('quiz', 16) }}<span>{{ t('progress.practice_topic') }}</span></a>
+      {% endif %}
+    {% else %}
+      {{ section_state(t, scores_res) }}
+    {% endif %}
+  </section>
+
+  <aside class="stack">
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('progress.weak') }}</h2>
+      {% if scores_res.ok %}
+        {% if weak %}
+          <ul class="topic-rows">
+            {% for w in weak %}<li><span class="topic-name">{{ topic_names.get(w.topic_id, w.topic_id) }}</span>{{ meter(w.average) }}</li>{% endfor %}
+          </ul>
+        {% elif scores %}
+          <p class="muted">{{ t('progress.weak.empty') }}</p>
+        {% else %}
+          <p class="muted">{{ t('scores.empty') }}</p>
+        {% endif %}
+      {% else %}
+        {{ section_state(t, scores_res) }}
+      {% endif %}
+    </section>
+  </aside>
+</div>
+
+<section class="panel panel-pad">
+  <h2 class="panel-title">{{ t('history.title') }}</h2>
+  {% if history_res.ok %}
+    {% set quizzes = history_res.data.quizzes %}
+    {% if quizzes %}
+      <ul class="topic-rows">
+        {% for h in quizzes %}
+        <li>
+          <span class="topic-name"><span dir="ltr">{{ h.submitted_at[:10] }}</span> · {% for tid in h.topic_ids %}{{ topic_names.get(tid, tid) }}{{ '، ' if not loop.last }}{% endfor %}</span>
+          <span class="score-ring" dir="ltr">{{ h.correct }}/{{ h.total }}</span>
+          <a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/progress/quizzes/' ~ h.quiz_id) }}">{{ icon('quiz', 16) }}<span>{{ t('history.open') }}</span></a>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">{{ t('history.empty') }}</p>
+    {% endif %}
+  {% else %}
+    {{ section_state(t, history_res) }}
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,14 @@
+{# 3 multiple-choice questions, answered in the browser (the answer is already in the page). Needs `questions`. #}
+<section class="tq-quiz" data-topic="{{ quiz_topic or '' }}" data-result-url="{{ u('/rooms/' ~ room.room_id ~ '/study/quiz-result') }}" data-msg-ok="{{ t('tutor.quiz.ok') }}" data-msg-bad="{{ t('tutor.quiz.bad') }}" data-msg-score="{{ t('tutor.quiz.score') }}">
+  <h4 class="bubble-sub">{{ icon('quiz', 16) }} {{ t('tutor.quiz.title') }}</h4>
+  {% for q in questions %}
+  <div class="tq-q" data-answer="{{ q.answer }}" data-why="{{ q.explanation }}">
+    <p dir="auto"><strong>{{ loop.index }}.</strong> {{ q.question }}</p>
+    <div class="tq-options">
+      {% for o in q.options %}<button class="tq-opt" type="button" data-i="{{ loop.index0 }}" dir="auto">{{ o }}</button>{% endfor %}
+    </div>
+    <div class="tq-fb" dir="auto" aria-live="polite"></div>
+  </div>
+  {% endfor %}
+  <div class="tq-score" aria-live="polite"></div>
+</section>

@@ -1,0 +1,14 @@
+{# M5: one slide-picture job (LLM writes the prompt, the diffusion model draws it). Polls every 5 s; the page refreshes when done. #}
+{% set status = job.status if job else 'PENDING' %}
+{% set poll = u('/presentations/' ~ deck_id ~ '/visuals/' ~ task_id) ~ '?prompt=' ~ (prompt | urlencode) %}
+{% if status in ('PENDING', 'RUNNING') %}
+<div class="video-job" hx-get="{{ poll }}" hx-trigger="load delay:5s" hx-swap="outerHTML">
+  <div class="inline-loading" style="display:flex"><span class="spinner"></span>{{ t('visual.running') }}</div>
+  {% if prompt %}<p class="muted small" dir="auto">{{ t('visual.prompt_used') }}: {{ prompt }}</p>{% endif %}
+  {% if used_llm %}<p class="muted small">{{ t('visual.llm_wrote') }}</p>{% endif %}
+</div>
+{% elif status == 'SUCCEEDED' %}
+<div class="video-job"><p>{{ icon('check_circle', 16) }} {{ t('visual.done') }}</p></div>
+{% else %}
+  {% with text=t('visual.failed') ~ (' ' ~ job.error if job and job.error else ''), kind='warning' %}{% include "partials/notice.html" %}{% endwith %}
+{% endif %}

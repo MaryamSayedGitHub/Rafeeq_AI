@@ -1,0 +1,145 @@
+{# M5: YouTube results that open at the second that answers the question. One player, Previous / Next. #}
+{% if not results %}
+  {% with text=t('video.no_results'), kind='info' %}{% include "partials/notice.html" %}{% endwith %}
+{% else %}
+<div class="video-box" data-video-results>
+  <p class="muted small">{{ t('video.results_for', q=query) }}</p>
+  <div class="video-player"><div id="video-player-frame"></div></div>
+  <p class="small" role="alert" data-video-error style="display: none; color: var(--red)"></p>
+  <p class="small"><a href="#" target="_blank" rel="noopener noreferrer" data-video-open>{{ t('video.open_youtube') }}</a></p>
+  <div class="video-nav">
+    <button class="btn btn-secondary btn-sm" type="button" data-video-prev>{{ icon('chevron', 16, 'back') }}<span>{{ t('video.prev') }}</span></button>
+    <span class="muted small" data-video-now aria-live="polite"></span>
+    <button class="btn btn-secondary btn-sm" type="button" data-video-next><span>{{ t('video.next') }}</span>{{ icon('chevron', 16, 'flip') }}</button>
+  </div>
+  <div class="clip-row" data-clip>
+    <label>{{ t('video.clip_start') }}
+      <input type="text" inputmode="numeric" dir="ltr" size="7" placeholder="0:00" data-clip-start></label>
+    <button class="btn btn-secondary btn-sm" type="button" data-clip-set-start>{{ t('video.set_here') }}</button>
+    <label>{{ t('video.clip_end') }}
+      <input type="text" inputmode="numeric" dir="ltr" size="7" placeholder="0:00" data-clip-end></label>
+    <button class="btn btn-secondary btn-sm" type="button" data-clip-set-end>{{ t('video.set_here') }}</button>
+    <button class="btn btn-secondary btn-sm" type="button" data-clip-preview>{{ t('video.preview_clip') }}</button>
+  </div>
+  <p class="muted small">{{ t('video.clip_hint') }}</p>
+  <form class="video-save" hx-post="{{ u('/video/moments') }}" hx-target="#video-save-note" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="room_id" value="{{ room_id }}">
+    <input type="hidden" name="title" data-save-title>
+    <input type="hidden" name="source_url" data-save-url>
+    <input type="hidden" name="start_sec" data-save-start>
+    <input type="hidden" name="end_sec" data-save-end>
+    <button class="btn btn-secondary btn-sm" type="submit" data-clip-save>{{ icon('folder', 16) }}<span>{{ t('video.save') }}</span></button>
+  </form>
+  <form class="video-save" hx-post="{{ u('/video/cover') }}" hx-target="#video-save-note" hx-swap="innerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <input type="hidden" name="room_id" value="{{ room_id }}">
+    <input type="hidden" name="title" data-save-title>
+    <input type="hidden" name="video_id" data-cover-id>
+    <input type="hidden" name="start_sec" data-cover-start>
+    <button class="btn btn-secondary btn-sm" type="submit" data-clip-save>{{ icon('image', 16) }}<span>{{ t('video.save_cover') }}</span></button>
+  </form>
+  <div id="video-save-note" aria-live="polite"></div>
+  <p class="small" dir="auto" data-video-excerpt></p>
+  <ul class="video-results">
+    {% for r in results %}
+    <li>
+      <button type="button" class="video-result" data-video-index="{{ loop.index0 }}">
+        {% if r.thumbnail %}<img class="video-thumb" src="{{ r.thumbnail }}" alt="" loading="lazy">{% endif %}
+        <span class="video-meta">
+          <strong dir="auto">{{ r.title }}</strong>
+          <small dir="auto">{{ r.channel }}</small>
+          <small><span dir="ltr">{{ r.open_at }}</span> · {{ t('video.match', n=(r.score * 100) | round | int) }}</small>
+        </span>
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+  <script type="application/json" data-video-data>{{ results | tojson }}</script>
+</div>
+<script>
+(function () {
+  var box = document.querySelector('[data-video-results]');
+  if (!box) return;
+  var results = JSON.parse(box.querySelector('[data-video-data]').textContent);
+  var idx = 0, player = null;
+  var startIn = box.querySelector('[data-clip-start]'), endIn = box.querySelector('[data-clip-end]');
+
+  function fmt(sec) { sec = Math.max(0, Math.floor(sec || 0)); var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+    return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0'); }
+  function parse(text) { var p = String(text).trim().split(':'); if (!p.length || p.some(function (x) { return !/^\d+(\.\d+)?$/.test(x); })) return NaN;
+    return p.reduce(function (acc, x) { return acc * 60 + parseFloat(x); }, 0); }
+  // the hidden fields of both save forms always follow the two boxes
+  function sync() {
+    var r = results[idx], a = parse(startIn.value), b = parse(endIn.value), ok = a >= 0 && b > a;
+    startIn.setAttribute('aria-invalid', a >= 0 ? 'false' : 'true'); endIn.setAttribute('aria-invalid', ok ? 'false' : 'true');
+    box.querySelectorAll('[data-clip-save]').forEach(function (btn) { btn.disabled = !ok; });
+    if (!ok) return;
+    box.querySelector('[data-save-url]').value = 'https://www.youtube.com/watch?v=' + encodeURIComponent(r.video_id) + '&t=' + Math.floor(a) + 's';
+    box.querySelector('[data-save-start]').value = a;
+    box.querySelector('[data-save-end]').value = b;
+    box.querySelector('[data-cover-start]').value = a;
+  }
+
+  function show(i) {
+    idx = (i + results.length) % results.length;
+    var r = results[idx];
+    box.querySelector('[data-video-now]').textContent = (idx + 1) + ' / ' + results.length;
+    box.querySelector('[data-video-excerpt]').textContent = r.text;
+    box.querySelectorAll('[data-save-title]').forEach(function (el) { el.value = r.title; });
+    box.querySelector('[data-cover-id]').value = r.video_id;
+    startIn.value = fmt(r.start_sec);
+    endIn.value = fmt(r.end_sec);
+    sync();
+    document.getElementById('video-save-note').innerHTML = '';
+    box.querySelector('[data-video-error]').style.display = 'none';
+    box.querySelector('[data-video-open]').href = 'https://www.youtube.com/watch?v=' + encodeURIComponent(r.video_id) + '&t=' + Math.floor(r.start_sec) + 's';
+    box.querySelectorAll('.video-result').forEach(function (el, n) {
+      el.classList.toggle('active', n === idx);
+      el.setAttribute('aria-current', n === idx ? 'true' : 'false');
+    });
+    if (player && player.loadVideoById) player.loadVideoById({ videoId: r.video_id, startSeconds: Math.floor(r.start_sec) });
+  }
+
+  function start() {
+    player = new YT.Player('video-player-frame', {
+      width: '100%', height: '100%', videoId: results[0].video_id,
+      playerVars: { start: Math.floor(results[0].start_sec), rel: 0, origin: window.location.origin },
+      events: {
+        onReady: function () { show(0); },
+        onError: function (e) {      // 101 / 150: the owner blocks embedding; 153: no referrer; others: unavailable
+          var box2 = box.querySelector('[data-video-error]');
+          box2.textContent = ({ 101: 1, 150: 1, 153: 1 }[e.data] ? {{ t('video.error_embed') | tojson }} : {{ t('video.error_play') | tojson }}) + ' (' + e.data + ')';
+          box2.style.display = '';
+        }
+      }
+    });
+  }
+
+  if (window.YT && window.YT.Player) { start(); }
+  else {
+    var previous = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = function () { if (previous) previous(); start(); };
+    if (!document.getElementById('yt-iframe-api')) {
+      var tag = document.createElement('script');
+      tag.id = 'yt-iframe-api'; tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+  }
+  startIn.addEventListener('input', sync); endIn.addEventListener('input', sync);
+  box.querySelector('[data-clip-set-start]').addEventListener('click', function () {
+    if (player && player.getCurrentTime) { startIn.value = fmt(player.getCurrentTime()); sync(); } });
+  box.querySelector('[data-clip-set-end]').addEventListener('click', function () {
+    if (player && player.getCurrentTime) { endIn.value = fmt(player.getCurrentTime()); sync(); } });
+  box.querySelector('[data-clip-preview]').addEventListener('click', function () {
+    var a = parse(startIn.value), b = parse(endIn.value);
+    if (player && player.loadVideoById && b > a) player.loadVideoById({ videoId: results[idx].video_id, startSeconds: a, endSeconds: b }); });
+  show(0);
+  box.querySelector('[data-video-prev]').addEventListener('click', function () { show(idx - 1); });
+  box.querySelector('[data-video-next]').addEventListener('click', function () { show(idx + 1); });
+  box.querySelectorAll('.video-result').forEach(function (el) {
+    el.addEventListener('click', function () { show(parseInt(el.dataset.videoIndex, 10)); });
+  });
+})();
+</script>
+{% endif %}

@@ -1,0 +1,48 @@
+{# M5: one story video. While it runs, this fragment reloads itself every 5 s and advances the chain. #}
+<div class="video-job" {% if job.status == 'pending' %}hx-get="{{ u('/story/' ~ job.asset_id) }}" hx-trigger="load delay:5s" hx-swap="outerHTML"{% endif %}>
+  <h3 class="small" dir="auto">{{ job.title }}</h3>
+  {% if job.status == 'pending' %}
+    <div class="inline-loading" style="display:flex"><span class="spinner"></span>{% if job.scenes_done == job.scene_count %}{{ t('story.finishing') }}{% else %}{{ t('story.progress', done=job.scenes_done, total=job.scene_count) }}{% endif %}</div>
+    <progress max="{{ job.scene_count }}" value="{{ job.scenes_done }}" aria-label="{{ t('story.progress', done=job.scenes_done, total=job.scene_count) }}"></progress>
+  {% elif job.status == 'ready' and job.file_url %}
+    <video class="video-player" controls preload="metadata" src="{{ u('/assets/' ~ job.asset_id ~ '/file') }}"></video>
+    <p class="help">{{ t('story.done', n=job.scene_count) }}{% if job.narrated %} {{ t('story.narrated') }}{% endif %}</p>
+    {% if job.voice and not job.narrated %}{% with text=t('story.no_sound') ~ ' ' ~ job.narration_error, kind='warning' %}{% include "partials/notice.html" %}{% endwith %}
+    <form hx-post="{{ u('/story') }}" hx-target="closest .video-job" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="topic" value="{{ job.topic }}">
+      <input type="hidden" name="scenes" value="{{ job.scene_count }}">
+      <input type="hidden" name="style" value="{{ job.style }}">
+      <input type="hidden" name="voice" value="{{ job.voice }}">
+      {% if job.fade %}<input type="hidden" name="fade" value="1">{% endif %}
+      {% if job.vision %}<input type="hidden" name="vision" value="1">{% endif %}
+      <input type="hidden" name="retry" value="1">
+      <button class="btn btn-secondary btn-sm" type="submit">{{ icon('refresh', 16) }}<span>{{ t('story.retry_voice') }}</span></button>
+    </form>{% endif %}
+    <div class="asset-actions">
+      <a class="btn btn-secondary btn-sm" href="{{ u('/media', asset=job.asset_id) }}">{{ icon('pen', 16) }}<span>{{ t('asset.edit') }}</span></a>
+      <a class="btn btn-secondary btn-sm" href="{{ u('/assets/' ~ job.asset_id ~ '/file', download=1) }}">{{ icon('download', 16) }}<span>{{ t('library.download') }}</span></a>
+      <a class="btn btn-secondary btn-sm" href="{{ u('/library') }}">{{ icon('folder', 16) }}<span>{{ t('story.in_library') }}</span></a>
+    </div>
+  {% else %}
+    {% with text=t('story.failed') ~ (' ' ~ job.error if job.error else ''), kind='warning' %}{% include "partials/notice.html" %}{% endwith %}
+    <form hx-post="{{ u('/story') }}" hx-target="closest .video-job" hx-swap="outerHTML">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <input type="hidden" name="topic" value="{{ job.topic }}">
+      <input type="hidden" name="scenes" value="{{ job.scene_count }}">
+      <input type="hidden" name="style" value="{{ job.style }}">
+      <input type="hidden" name="voice" value="{{ job.voice }}">
+      {% if job.fade %}<input type="hidden" name="fade" value="1">{% endif %}
+      {% if job.vision %}<input type="hidden" name="vision" value="1">{% endif %}
+      <input type="hidden" name="retry" value="1">
+      <button class="btn btn-secondary btn-sm" type="submit">{{ icon('refresh', 16) }}<span>{{ t('story.retry') }}</span></button>
+    </form>
+  {% endif %}
+  <ol class="story-scenes small">
+    {% for s in job.scenes %}
+    <li class="story-scene state-{{ s.state }}"><strong>{{ s.n }}</strong>
+      <span dir="auto">{{ s.narration or s.visual }}</span>
+      <span class="badge {{ 'badge-green' if s.state == 'done' else 'badge-gray' }}">{{ t('story.state.' ~ s.state) }}</span></li>
+    {% endfor %}
+  </ol>
+</div>

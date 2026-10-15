@@ -1,0 +1,8 @@
+{% if r.points %}
+<section class="tq-box">
+  <h4 class="bubble-sub">{{ icon('list', 16) }} {{ t('tutor.summary.title') }}</h4>
+  <ul class="step-list" dir="auto">{% for p in r.points %}<li>{{ p }}</li>{% endfor %}</ul>
+</section>
+{% else %}
+  <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('tutor.tool_fail') }}</span></div>
+{% endif %}

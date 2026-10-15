@@ -1,0 +1,11 @@
+{# One hint, then the button for the next one (the old button's container is replaced). #}
+<div class="tq-hint" dir="auto"><strong>{{ icon('bulb', 14) }} {{ t('tutor.help.hint_n', n=r.n) }}</strong><div>{{ r.hint }}</div></div>
+<div id="help-{{ key }}-step" class="btn-row">
+  {% if r.next == 'hint' %}
+    <button class="btn btn-primary btn-sm" type="button" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/agent') }}" hx-vals='{"action": "hint", "key": "{{ key }}", "n": {{ r.n + 1 }}}'
+            hx-target="#help-{{ key }}-step" hx-swap="outerHTML" hx-indicator="#help-{{ key }}-wait">{{ t('tutor.help.hint_btn', n=r.n + 1) }}</button>
+  {% else %}
+    <button class="btn btn-secondary btn-sm" type="button" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/agent') }}" hx-vals='{"action": "solution", "key": "{{ key }}"}'
+            hx-target="#help-{{ key }}-step" hx-swap="outerHTML" hx-indicator="#help-{{ key }}-wait">{{ t('tutor.help.solution_btn') }}</button>
+  {% endif %}
+</div>

@@ -1,0 +1,133 @@
+{# A lecturer-assistant session (M5 LecturerSession). Nothing is shared with students from here. #}
+{% set d = session.draft or {} %}
+{% set base = '/rooms/' ~ room.room_id ~ '/studio/sessions/' ~ session.session_id %}
+<section class="panel session" id="session-panel" tabindex="-1" data-focus-heading>
+  <header class="session-head">
+    <div>
+      <h2>{{ session.topic }}</h2>
+      {% set tone = {'awaiting_approval': 'amber', 'done': 'green', 'incomplete': 'red'}.get(session.status, 'gray') %}
+      <span class="badge badge-{{ tone }}">{{ t('session.status.' ~ session.status) }}</span>
+    </div>
+    {% if session.status == 'awaiting_approval' %}
+      <span class="muted small">{{ t('session.revisions_left', n=session.revisions_left) }}</span>
+    {% endif %}
+  </header>
+
+  <div class="session-body">
+    {% if session.selected_agents %}
+    <div class="session-meta">
+      <h3>{{ t('session.agents') }}</h3>
+      <div class="tag-list">{% for a in session.selected_agents %}<span class="tag">{{ t('agent.' ~ a) }}</span>{% endfor %}</div>
+      {% if session.reasoning %}<p class="muted small">{{ session.reasoning }}</p>{% endif %}
+      {% if session.memory %}
+        <details><summary>{{ t('session.memory') }}</summary><ul class="plain-list">{% for m in session.memory %}<li>{{ m }}</li>{% endfor %}</ul></details>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if session.status == 'incomplete' and not d %}
+      <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('session.incomplete') }}</span></div>
+    {% endif %}
+
+    {% if d.outline %}
+    <div class="draft-block">
+      <h3>{{ t('session.outline') }}</h3>
+      <ol class="plain-list">{% for o in d.outline %}<li>{{ o }}</li>{% endfor %}</ol>
+    </div>
+    {% endif %}
+
+    {% if d.slides %}
+    <div class="draft-block">
+      <h3>{{ t('session.slides') }}</h3>
+      <div class="slide-list">
+        {% for s in d.slides %}
+        <article class="slide-card">
+          <span class="slide-n">{{ t('session.slide_n', n=loop.index) }}</span>
+          <h4>{{ s.title }}</h4>
+          <ul>{% for b in s.bullets %}<li>{{ b }}</li>{% endfor %}</ul>
+          {% if s.diagram_steps %}<p class="diagram-steps">{% for st in s.diagram_steps %}<span>{{ st }}</span>{% endfor %}</p>{% endif %}
+          {% if s.notes %}<details><summary>{{ t('session.slide_notes') }}</summary><p>{{ s.notes }}</p></details>{% endif %}
+        </article>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% if d.code_examples %}
+    <div class="draft-block">
+      <h3>{{ t('session.code') }}</h3>
+      {% for c in d.code_examples %}
+      <article class="code-card">
+        <div class="code-head">
+          <strong>{{ c.title }}</strong>
+          {% if c.verified == true %}<span class="badge badge-green">{{ icon('check', 14) }}{{ t('code.verified') }}</span>
+          {% elif c.verified == false %}<span class="badge badge-red">{{ t('code.failed', n=c.fix_attempts) }}</span>
+          {% else %}<span class="badge badge-gray">{{ t('code.not_run') }}</span>{% endif %}
+        </div>
+        <pre dir="ltr"><code>{{ c.code }}</code></pre>
+        {% if c.explanation %}<p>{{ c.explanation }}</p>{% endif %}
+        {% if c.output %}<details><summary>{{ t('code.output') }}</summary><pre dir="ltr"><code>{{ c.output }}</code></pre></details>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if d.quiz %}
+    <div class="draft-block">
+      <h3>{{ t('session.quiz') }}</h3>
+      <ol class="draft-quiz">
+        {% for q in d.quiz %}
+        <li>
+          <strong>{{ q.question }}</strong>
+          <ul>{% for o in q.options %}<li class="{{ 'is-answer' if loop.index0 == q.answer_index }}">{{ o }}{% if loop.index0 == q.answer_index %} <span class="badge badge-green">{{ t('session.correct') }}</span>{% endif %}</li>{% endfor %}</ul>
+          {% if q.explanation %}<p class="muted small">{{ q.explanation }}</p>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </div>
+    {% endif %}
+
+    {% if session.files %}
+    <div class="draft-block">
+      <h3>{{ t('session.files') }}</h3>
+      <ul class="file-list">
+        {% for f in session.files %}
+        <li><span class="file-cell">{{ icon('file', 18) }}<span dir="ltr">{{ f.name }}</span></span>
+          <a class="btn btn-secondary btn-sm" href="{{ u(base ~ '/files/' ~ (f.name | urlencode)) }}">{{ icon('download', 16) }}<span>{{ t('session.download') }}</span></a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if session.status == 'done' %}
+  <footer class="session-next" aria-label="{{ t('session.next_steps') }}">
+    <h3 class="small-title">{{ icon('arrow', 16, 'flip') }}<span>{{ t('session.next_steps') }}</span></h3>
+    <p class="muted small">{{ t('session.next_steps_text') }}</p>
+    <div class="asset-actions">
+      {% if d.slides %}<a class="btn btn-primary btn-sm" href="{{ u('/presentations/open', session=session.session_id, room=room.room_id) }}">{{ icon('presentation', 16) }}<span>{{ t('session.next_deck') }}</span></a>{% endif %}
+      <a class="btn btn-secondary btn-sm" href="{{ u('/video', session=session.session_id, room=room.room_id) }}">{{ icon('search', 16) }}<span>{{ t('session.next_video') }}</span></a>
+      <a class="btn btn-secondary btn-sm" href="{{ u('/media', session=session.session_id, room=room.room_id) }}">{{ icon('image', 16) }}<span>{{ t('session.next_media') }}</span></a>
+      <a class="btn btn-secondary btn-sm" href="{{ u('/learning', session=session.session_id, room=room.room_id) }}">{{ icon('book', 16) }}<span>{{ t('session.next_course') }}</span></a>
+    </div>
+  </footer>
+  {% endif %}
+
+  {% if session.status == 'awaiting_approval' %}
+  <footer class="session-actions">
+    <form hx-post="{{ u(base ~ '/decision') }}" hx-target="#session-panel" hx-swap="outerHTML" hx-indicator="#decision-indicator">
+      <input type="hidden" name="decision" value="approve">
+      <button class="btn btn-primary" type="submit">{{ icon('check', 18) }}<span>{{ t('session.approve') }}</span></button>
+    </form>
+    {% if session.revisions_left > 0 %}
+    <form class="revise-form" hx-post="{{ u(base ~ '/decision') }}" hx-target="#session-panel" hx-swap="outerHTML" hx-indicator="#decision-indicator">
+      <input type="hidden" name="decision" value="revise">
+      <label class="sr-only" for="feedback-{{ session.session_id }}">{{ t('session.feedback') }}</label>
+      <input class="input" id="feedback-{{ session.session_id }}" name="feedback" required placeholder="{{ t('session.feedback') }}">
+      <button class="btn btn-secondary" type="submit">{{ icon('pen', 16) }}<span>{{ t('session.revise') }}</span></button>
+    </form>
+    {% endif %}
+    <div class="htmx-indicator inline-loading" id="decision-indicator"><span class="spinner"></span>{{ t('session.working') }}</div>
+  </footer>
+  {% endif %}
+</section>

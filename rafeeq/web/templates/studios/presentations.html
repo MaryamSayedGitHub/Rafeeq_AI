@@ -1,0 +1,60 @@
+{% extends "layout.html" %}
+{% from "macros.html" import empty_state, section_state, project_bar with context %}
+{% block title %}{{ t('deck.title') }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('deck.title') }}</h1>
+    <p>{{ t('deck.intro') }}</p>
+  </div>
+</div>
+{{ project_bar(proj, '/presentations', keep) }}
+{% if request.query_params.get('asset') %}<div class="inline-note">{{ icon('image', 16) }}<span>{{ t('deck.pick_deck_for_image') }}</span></div>{% endif %}
+{% if request.query_params.get('theme') %}<div class="inline-note">{{ icon('settings', 16) }}<span>{{ t('deck.pick_deck_for_theme') }}</span></div>{% endif %}
+
+<section class="panel panel-pad" aria-labelledby="decks-title">
+  <h2 class="panel-title" id="decks-title">{{ t('deck.your_decks') }}</h2>
+  {% if not res.ok %}
+    {{ section_state(t, res) }}
+  {% elif not decks %}
+    {{ empty_state('presentation', t('deck.empty'), t('deck.empty_text')) }}
+    <p class="center"><a class="btn btn-primary" href="{{ u('/studio', **proj.q) }}">{{ icon('sparkle', 18) }}<span>{{ t('nav.studio') }}</span></a></p>
+  {% else %}
+  <ul class="session-list deck-list">
+    {% for d in decks %}
+    <li>
+      <div>
+        <strong dir="auto">{{ d.title }}</strong>
+        <small>{{ t('deck.slides_count', n=d.slide_count) }} · {{ d.theme_name }}{% if d.room_id and proj.room_names.get(d.room_id) %} · {{ proj.room_names[d.room_id] }}{% endif %}{% if d.exports %} · {{ t('deck.exported_n', n=d.exports) }}{% endif %}</small>
+      </div>
+      <a class="btn btn-primary btn-sm" href="{{ u('/presentations/' ~ d.deck_id, **carry) }}">{{ icon('pen', 16) }}<span>{{ t('deck.edit') }}</span></a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+<section class="panel panel-pad" aria-labelledby="themes-title">
+  <h2 class="panel-title" id="themes-title">{{ t('theme.title') }}</h2>
+  <p class="muted">{{ t('theme.intro') }}</p>
+  <ul class="theme-grid">
+    {% for th in presets + custom %}
+    <li class="theme-card">
+      <div class="swatches">{% for k in ('ink', 'blue', 'blue_soft', 'yellow', 'green', 'paper') %}<span style="background: {{ th.colors[k] }}"></span>{% endfor %}</div>
+      <strong dir="auto">{{ th.name }}</strong>
+      <small class="muted">{{ t('theme.custom') if th.asset_id is defined else t('theme.preset') }} · <span dir="ltr">{{ th.font }}</span></small>
+    </li>
+    {% endfor %}
+  </ul>
+  <form class="form-stack theme-extract" method="post" action="{{ u('/presentations/themes') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <h3 class="small-title">{{ icon('upload', 16) }}<span>{{ t('theme.extract_title') }}</span></h3>
+    <p class="help">{{ t('theme.extract_help') }}</p>
+    <div class="form-grid">
+      <div class="field"><label for="t-file">{{ t('theme.file') }}</label><input class="input" id="t-file" type="file" name="file" required accept=".pptx,.potx"></div>
+      <div class="field"><label for="t-name">{{ t('theme.name') }} <span class="muted">({{ t('optional') }})</span></label><input class="input" id="t-name" name="name" maxlength="60" dir="auto"></div>
+    </div>
+    <button class="btn btn-secondary" type="submit">{{ icon('upload', 18) }}<span>{{ t('theme.extract') }}</span></button>
+  </form>
+</section>
+{% endblock %}

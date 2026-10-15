@@ -1,0 +1,22 @@
+{
+  "lecturer_id": "sara-ahmed",
+  "lecturer_name": "د. سارة أحمد",
+  "room_id": "r_bio101",
+  "topic": "Python functions",
+  "course_name": "",
+  "student_level": "beginner",
+  "duration_minutes": 60,
+  "language": "Arabic",
+  "programming_language": "Python",
+  "needs": [
+    "slides",
+    "code",
+    "quiz"
+  ],
+  "num_quiz_questions": 3,
+  "learning_objectives": [
+    "يكتب الطالب دالة بمعاملات افتراضية",
+    "يفرّق بين return و print"
+  ],
+  "notes": "أمثلة من الحياة اليومية"
+}

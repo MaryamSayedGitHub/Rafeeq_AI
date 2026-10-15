@@ -1,0 +1,15 @@
+{
+  "route": "ask",
+  "reply": "الميتوكوندريا هي مصنع الطاقة في الخلية.",
+  "payload": {
+    "answer": "الميتوكوندريا تنتج الطاقة (ATP) للخلية.",
+    "citations": [
+      {
+        "file_name": "biology_ch3.pdf",
+        "page": 12
+      }
+    ],
+    "grounded": true,
+    "steps": []
+  }
+}

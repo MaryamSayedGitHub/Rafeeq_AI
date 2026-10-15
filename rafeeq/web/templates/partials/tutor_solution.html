@@ -1,0 +1,10 @@
+{# The full solution with its steps. Nothing is left to ask for, so the button's container is replaced by it. #}
+<div class="tq-solution">
+  <h4 class="bubble-sub">{{ icon('book', 16) }} {{ t('tutor.help.solution_title') }}</h4>
+  {% if r.steps %}
+    <ol class="step-list" dir="auto">{% for s in r.steps %}<li><pre class="tq-pre">{{ s }}</pre></li>{% endfor %}</ol>
+    {% if r.final_answer %}<p dir="auto"><strong>{{ t('tutor.help.final_answer') }}:</strong> {{ r.final_answer }}</p>{% endif %}
+  {% else %}
+    <p class="muted">{{ t('tutor.help.no_solution') }}</p>
+  {% endif %}
+</div>

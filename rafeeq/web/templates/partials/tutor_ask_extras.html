@@ -1,0 +1,58 @@
+{# Under a Level 1 answer: the 3 MCQ, "explain again", and "go deeper" (Level 2). For a problem: the hints panel. Needs room, p, shown, turn_id. #}
+{% set act_url = u('/rooms/' ~ room.room_id ~ '/study/agent') %}
+{% if p.help_key %}
+  {% set key = p.help_key %}
+  {% set solution_only = false %}
+  {% include "partials/tutor_help_panel.html" %}
+{% else %}
+  {% if p.grounded and p.material_source != 'web' %}
+  {# the questions are made only when the student asks: M4's for this topic (the answer came from the material) #}
+  <div class="btn-row tq-quizbar">
+    <button class="btn btn-secondary btn-sm" type="button" hx-post="{{ act_url }}"
+            hx-vals='{{ {"action": "quiz", "topic_id": p.topic_id or "", "question": shown, "lang": p.language or ""} | tojson }}'
+            hx-target="#quiz-{{ turn_id }}" hx-swap="innerHTML" hx-indicator="#quiz-{{ turn_id }}-wait">{{ icon('quiz', 16) }}<span>{{ t('tutor.quiz_btn') }}</span></button>
+  </div>
+  <div class="chat-indicator htmx-indicator" id="quiz-{{ turn_id }}-wait"><span class="spinner"></span>{{ t('tutor.working') }}</div>
+  <div id="quiz-{{ turn_id }}"></div>
+  {% endif %}
+
+  {% if p.grounded and reply.reply %}
+  <form class="tq-rewrite-form" hx-post="{{ act_url }}" hx-target="#rw-{{ turn_id }}" hx-swap="innerHTML" hx-indicator="#wait-{{ turn_id }}">
+    <input type="hidden" name="action" value="rewrite">
+    <input type="hidden" name="question" value="{{ shown }}">
+    <input type="hidden" name="lang" value="{{ p.language or '' }}">
+    <input type="hidden" name="text" value="{{ reply.reply }}{% if p.steps %} {{ p.steps | join(' ') }}{% endif %}">
+    <div class="btn-row">
+      <button class="btn btn-soft btn-sm" type="submit" name="mode" value="simpler">{{ t('tutor.simpler') }}</button>
+      <button class="btn btn-soft btn-sm" type="submit" name="mode" value="example">{{ t('tutor.example') }}</button>
+      <button class="btn btn-soft btn-sm" type="submit" name="mode" value="compare">{{ t('tutor.compare') }}</button>
+      <input class="input tq-other" type="text" name="other" dir="auto" placeholder="{{ t('tutor.compare_ph') }}">
+    </div>
+  </form>
+  <div id="rw-{{ turn_id }}"></div>
+  {% endif %}
+
+  {% if not p.escalated %}
+  <form class="btn-row tq-teacher" hx-post="{{ act_url }}" hx-target="#teacher-{{ turn_id }}" hx-swap="innerHTML">
+    <input type="hidden" name="action" value="teacher">
+    <input type="hidden" name="text" value="{{ shown }}">
+    <button class="btn btn-soft btn-sm" type="submit">{{ icon('send', 16, 'back') }}<span>{{ t('tutor.ask_teacher_btn') }}</span></button>
+  </form>
+  <div id="teacher-{{ turn_id }}"></div>
+  {% endif %}
+
+  <div class="tq-offer">
+    <h4 class="bubble-sub">{{ icon('sparkle', 16) }} {{ t('tutor.deeper.title') if p.grounded else t('tutor.deeper.offer_title') }}</h4>
+    <p class="muted small">{{ t('tutor.deeper.sub') }}</p>
+    <form class="btn-row" hx-post="{{ act_url }}" hx-target="#chat-log" hx-swap="beforeend" hx-indicator="#wait-{{ turn_id }}">
+      <input type="hidden" name="action" value="research">
+      <input type="hidden" name="text" value="{{ shown }}">
+      {% if not p.grounded and p.question_id %}<input type="hidden" name="parent" value="{{ p.question_id }}">{% endif %}
+      <label class="tq-pages"><span>{{ t('tutor.pages') }}</span>
+        <input class="input" type="number" name="pages" min="1" max="10" value="1">
+      </label>
+      <button class="btn {{ 'btn-secondary' if p.grounded else 'btn-primary' }} btn-sm" type="submit">{{ icon('file', 16) }}<span>{{ t('tutor.write_file') }}</span></button>
+    </form>
+  </div>
+  <div class="chat-indicator htmx-indicator" id="wait-{{ turn_id }}"><span class="spinner"></span>{{ t('tutor.working') }}</div>
+{% endif %}

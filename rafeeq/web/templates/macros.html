@@ -1,0 +1,78 @@
+{% macro csrf_field(csrf) %}<input type="hidden" name="csrf_token" value="{{ csrf }}">{% endmacro %}
+
+{% macro empty_state(icon_name, title, text='') %}
+<div class="empty">
+  <span class="empty-icon">{{ icon(icon_name, 26) }}</span>
+  <h3>{{ title }}</h3>
+  {% if text %}<p>{{ text }}</p>{% endif %}
+  {{ caller() if caller is defined else '' }}
+</div>
+{% endmacro %}
+
+{# Shows why a section has no data: not connected yet, or an error. #}
+{% macro section_state(t, res) %}
+<div class="section-state {% if res.kind == 'unavailable' %}is-unavailable{% else %}is-error{% endif %}">
+  {{ icon('info' if res.kind == 'unavailable' else 'alert', 18) }}
+  <span>{{ t('section.unavailable') if res.kind == 'unavailable' else t('section.error') }}</span>
+</div>
+{% endmacro %}
+
+{% macro file_status(t, status) %}
+{% set tone = {'ready': 'green', 'indexing': 'blue', 'uploaded': 'gray', 'failed': 'red'}.get(status, 'gray') %}
+<span class="badge badge-{{ tone }}"><span class="dot"></span>{{ t('status.' ~ status) }}</span>
+{% endmacro %}
+
+{% macro student_status(t, status) %}
+{% if status %}
+{% set tone = {'on_track': 'green', 'watch': 'amber', 'struggling': 'red'}.get(status, 'gray') %}
+<span class="badge badge-{{ tone }}">{{ t('student_status.' ~ status) }}</span>
+{% else %}<span class="muted">{{ t('students.no_data') }}</span>{% endif %}
+{% endmacro %}
+
+{% macro meter(value, status=None) %}
+{% set pct = ((value or 0) * 100) | round | int %}
+{% set tone = status if status else ('struggling' if pct < 45 else 'watch' if pct < 65 else 'on_track') %}
+<div class="meter" role="img" aria-label="{{ pct }}%">
+  <div class="meter-track"><div class="meter-fill tone-{{ tone }}" style="inline-size: {{ pct }}%"></div></div>
+  <span class="meter-value" dir="ltr">{{ pct }}%</span>
+</div>
+{% endmacro %}
+
+{% macro copy_code(t, code) %}
+<div class="join-code">
+  <span class="join-code-value" dir="ltr">{{ code }}</span>
+  <button type="button" class="btn btn-secondary btn-sm" data-copy="{{ code }}">{{ icon('copy', 16) }}<span>{{ t('copy') }}</span></button>
+</div>
+{% endmacro %}
+
+{# The project every studio is working on (room + finished lesson). It travels in the URL (?room=&session=),
+   so opening another studio keeps it. Import with context:  {% from "macros.html" import project_bar with context %} #}
+{% macro project_bar(proj, path, keep={}) %}
+<form class="project-bar" method="get" action="{{ u(path) }}">
+  <span class="project-bar-label">{{ icon('target', 16) }}<span>{{ t('bar.working_on') }}</span></span>
+  <label class="sr-only" for="bar-room">{{ t('bar.room') }}</label>
+  <select class="input" id="bar-room" name="room">
+    <option value="">{{ t('bar.no_room') }}</option>
+    {% for r in proj.rooms %}<option value="{{ r.room_id }}" {% if proj.room and proj.room.room_id == r.room_id %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+  </select>
+  {% if proj.session %}<input type="hidden" name="session" value="{{ proj.session.session_id }}">{% endif %}
+  {% for k, v in keep.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+  <button class="btn btn-secondary btn-sm" type="submit">{{ t('bar.apply') }}</button>
+  {% if proj.session %}
+  <span class="project-chip">{{ icon('presentation', 16) }}<span dir="auto">{{ proj.session.topic }}</span>
+    {% if proj.session.room_id %}<a href="{{ u('/rooms/' ~ proj.session.room_id ~ '/studio/sessions/' ~ proj.session.session_id) }}">{{ t('bar.open_lesson') }}</a>{% endif %}
+    <a href="{{ u(path, room=(proj.room.room_id if proj.room else '')) }}" aria-label="{{ t('bar.clear_lesson') }}" title="{{ t('bar.clear_lesson') }}">{{ icon('x_circle', 16) }}</a>
+  </span>
+  {% endif %}
+</form>
+{% endmacro %}
+
+{# Links from one studio to the others for the current lesson/room/asset. `q` is a dict of query params. #}
+{% macro studio_links(q) %}
+<div class="asset-actions">
+  <a class="btn btn-secondary btn-sm" href="{{ u('/presentations/open', **q) if q.session else u('/presentations', **q) }}">{{ icon('presentation', 16) }}<span>{{ t('nav.presentations') }}</span></a>
+  <a class="btn btn-secondary btn-sm" href="{{ u('/video', **q) }}">{{ icon('search', 16) }}<span>{{ t('nav.video') }}</span></a>
+  <a class="btn btn-secondary btn-sm" href="{{ u('/media', **q) }}">{{ icon('image', 16) }}<span>{{ t('nav.media') }}</span></a>
+  <a class="btn btn-secondary btn-sm" href="{{ u('/learning', **q) }}">{{ icon('book', 16) }}<span>{{ t('nav.learning') }}</span></a>
+</div>
+{% endmacro %}

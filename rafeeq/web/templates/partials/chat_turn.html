@@ -1,0 +1,128 @@
+{# One exchange: the student's message, then Rafeeq's reply rendered by route. #}
+<div class="chat-row from-user">
+  <span class="chat-avatar avatar-student">{{ user.name[:1] }}</span>
+  <div class="bubble bubble-user"><p>{{ shown }}</p></div>
+</div>
+<div class="chat-row from-rafeeq">
+  <span class="chat-avatar">{{ icon('book', 18) }}</span>
+  <div class="bubble" tabindex="-1" data-focus-heading>
+    {% if error %}
+      <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ error }}</span></div>
+    {% else %}
+      {% set route = reply.route %}
+      {% set p = reply.payload or {} %}
+
+      {% if p.unavailable %}
+        <div class="inline-note">{{ icon('info', 16) }}<span>{{ t('answer.unavailable') }}</span></div>
+
+      {% elif route == 'ask' %}
+        {% if p.verified_by_teacher %}
+          <span class="badge badge-green">{{ icon('badge', 14) }}{{ t('answer.verified') }}</span>
+        {% endif %}
+        {% if p.grounded == false %}
+          {% if not p.escalated %}<div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('answer.not_grounded') }}</span></div>{% endif %}
+          {% if p.escalated %}
+            <div class="inline-note">{{ icon('send', 16, 'back') }}<span>{{ t('answer.escalated') }}</span></div>
+          {% else %}
+            <p class="muted">{{ t('answer.ask_teacher') }}</p>
+          {% endif %}
+        {% endif %}
+        {% if reply.reply %}<div class="answer-text">{{ reply.reply }}</div>{% endif %}
+        {% if p.steps %}
+          <h4 class="bubble-sub">{{ t('answer.steps') }}</h4>
+          <ol class="step-list">{% for s in p.steps %}<li>{{ s }}</li>{% endfor %}</ol>
+        {% endif %}
+        {% if p.notice %}
+          <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ p.notice }}</span></div>
+        {% endif %}
+        {% if p.web_sources %}
+          <div class="inline-note">{{ icon('info', 16) }}<span>{{ t('tutor.web_answer') }}</span></div>
+          <div class="sources">
+            <span class="sources-label">{{ t('tutor.sources') }}</span>
+            {% for s in p.web_sources %}
+            <a class="source-chip" href="{{ s.url }}" target="_blank" rel="noopener noreferrer">{{ icon('file', 14) }}<span dir="auto">[{{ s.n }}] {{ s.title }}</span></a>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if p.answer_flagged %}
+          <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('tutor.flagged') }}</span></div>
+        {% endif %}
+        {% if p.citations %}
+          <div class="sources">
+            <span class="sources-label">{{ t('answer.sources') }}</span>
+            {% for c in p.citations %}
+            <a class="source-chip" href="{{ u('/rooms/' ~ room.room_id ~ '/source', file_name=c.file_name, page=c.page) }}">
+              {{ icon('file', 14) }}<span dir="ltr">{{ c.file_name }}</span><span>· {{ t('answer.page', page=c.page) }}</span>
+            </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+        {% if not p.sample and not p.verified_by_teacher %}{% include "partials/tutor_ask_extras.html" %}{% endif %}
+
+      {% elif route == 'check_work' %}
+        {% if p.needs_photo %}
+          <p>{{ t('answer.needs_photo') }}</p>
+        {% else %}
+          <h4 class="bubble-title">{{ t('check.title') }}</h4>
+          {% if file_id %}
+            <div class="photo-frame" data-photo-slot data-file-id="{{ file_id }}" data-boxes='{{ (p.item_boxes or p.boxes or []) | tojson }}'></div>
+          {% endif %}
+          {% set wrong = p.steps | selectattr('correct', 'equalto', false) | list %}
+          {% set work_items = p.get('items') %}{% if work_items %}
+          <ol class="work-steps tq-steps">
+            {% for it in work_items %}
+            <li class="tq-{{ it.status }}">
+              {{ icon({'ok': 'check_circle', 'check': 'info', 'error': 'x_circle'}[it.status], 18) }}
+              <span class="work-step-text" dir="auto">{{ it.text }}</span>
+              <small>{{ t('tutor.legend.' ~ it.status) }}</small>
+              {% if it.hint %}<div class="tq-step-hint" dir="auto">{{ icon('bulb', 14) }} {{ it.hint }}</div>{% endif %}
+            </li>
+            {% endfor %}
+          </ol>
+          <p class="muted small tq-legend"><i class="tq-dot tq-ok"></i>{{ t('tutor.legend.ok') }} <i class="tq-dot tq-check"></i>{{ t('tutor.legend.check') }} <i class="tq-dot tq-error"></i>{{ t('tutor.legend.error') }}</p>
+          {% else %}
+          <ol class="work-steps">
+            {% for s in p.steps %}
+            <li class="{{ 'is-correct' if s.correct else 'is-wrong' }}">
+              {{ icon('check_circle' if s.correct else 'x_circle', 18) }}
+              <span class="work-step-text" dir="auto">{{ s.text }}</span>
+              <small>{{ t('check.correct') if s.correct else t('check.wrong') }}</small>
+            </li>
+            {% endfor %}
+          </ol>
+          {% endif %}
+          {% if p.needs_clarification %}
+            <div class="hint">{{ icon('info', 18) }}<div><strong>{{ t('tutor.clarify.title') }}</strong><p>{{ p.clarification }}</p></div></div>
+          {% elif wrong or (p.needs_help and not p.complete) %}
+            <div class="hint">{{ icon('bulb', 18) }}<div><strong>{{ t('check.hint') }}</strong><p>{{ p.hint }}</p></div></div>
+          {% else %}
+            <div class="inline-note note-success">{{ icon('check_circle', 16) }}<span>{{ t('check.all_correct') }}</span></div>
+          {% endif %}
+          {% if p.help_key %}
+            {% set key = p.help_key %}
+            {% set solution_only = not p.needs_help %}
+            {% include "partials/tutor_help_panel.html" %}
+          {% endif %}
+        {% endif %}
+
+      {% elif route == 'quiz' %}
+        <p>{{ t('answer.quiz_ready') }}</p>
+        <a class="btn btn-soft btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/practice', topic=p.topic_id) }}">{{ icon('quiz', 16) }}<span>{{ t('answer.open_practice') }}</span></a>
+
+      {% elif route == 'plan' %}
+        <h4 class="bubble-sub">{{ t('answer.plan') }}</h4>
+        <p>{{ reply.reply }}</p>
+        {% if p.topic_id %}
+          <a class="btn btn-soft btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/practice', topic=p.topic_id) }}">{{ icon('quiz', 16) }}<span>{{ t('progress.practice_topic') }}{% if topic_names.get(p.topic_id) %}: {{ topic_names[p.topic_id] }}{% endif %}</span></a>
+        {% endif %}
+
+      {% else %}
+        <p>{{ reply.reply }}</p>
+      {% endif %}
+
+      {% if p.sample %}
+        <div class="sample-note">{{ icon('info', 14) }}<span>{{ t('answer.sample') }}</span></div>
+      {% endif %}
+    {% endif %}
+  </div>
+</div>

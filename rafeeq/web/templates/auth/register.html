@@ -1,0 +1,38 @@
+{% extends "auth/_shell.html" %}
+{% block title %}{{ t('register.title') }}{% endblock %}
+{% block card %}
+<h1>{{ t('register.heading') }}</h1>
+<p class="muted">{{ t('register.sub') }}</p>
+{% if error %}<div class="notice notice-error" role="alert">{{ icon('alert', 18) }}<p>{{ error }}</p></div>{% endif %}
+<form method="post" action="{{ u('/register') }}" class="form-stack" data-role-form>
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <fieldset class="field">
+    <legend>{{ t('register.role') }}</legend>
+    <div class="segmented">
+      {% for r in ('student', 'teacher') %}
+      <label><input type="radio" name="role" value="{{ r }}" {% if form.role == r %}checked{% endif %}><span>{{ t('role.' ~ r) }}</span></label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <div class="field">
+    <label for="name">{{ t('field.name') }}</label>
+    <input class="input" id="name" name="name" autocomplete="name" required value="{{ form.name or '' }}">
+  </div>
+  <div class="field">
+    <label for="email">{{ t('field.email') }}</label>
+    <input class="input" id="email" name="email" type="email" dir="ltr" autocomplete="email" required value="{{ form.email or '' }}">
+  </div>
+  <div class="field">
+    <label for="password">{{ t('field.password') }}</label>
+    <input class="input" id="password" name="password" type="password" dir="ltr" autocomplete="new-password" minlength="6" required aria-describedby="pw-help">
+    <p class="help" id="pw-help">{{ t('password.help') }}</p>
+  </div>
+  <div class="field" data-student-only {% if form.role == 'teacher' %}hidden{% endif %}>
+    <label for="join_code">{{ t('register.join_code') }} <span class="muted">({{ t('optional') }})</span></label>
+    <input class="input code-input" id="join_code" name="join_code" dir="ltr" autocomplete="off" placeholder="{{ t('rooms.join.placeholder') }}" value="{{ form.join_code or '' }}" aria-describedby="jc-help">
+    <p class="help" id="jc-help">{{ t('register.join_help') }}</p>
+  </div>
+  <button class="btn btn-primary btn-block" type="submit">{{ t('register.submit') }}</button>
+</form>
+<p class="auth-switch">{{ t('register.have_account') }} <a href="{{ u('/login') }}">{{ t('login.submit') }}</a></p>
+{% endblock %}

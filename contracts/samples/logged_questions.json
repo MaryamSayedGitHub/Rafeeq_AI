@@ -1,0 +1,11 @@
+[
+  {
+    "question_id": 17,
+    "ts": "2026-10-09T10:30:00+00:00",
+    "question": "ما وظيفة الميتوكوندريا؟",
+    "topic_id": "t_energy",
+    "level": 1,
+    "grounded": true,
+    "study_file_id": null
+  }
+]

@@ -1,0 +1,49 @@
+{# Correct answers are never sent to the browser: only question text and choices.
+   Optional: picked (the answer text read from a photographed sheet, "" when unclear), flagged (indexes to double-check), review_note. #}
+{% set picked = picked or [] %}
+{% set flagged = flagged or [] %}
+<div class="stack">
+  {% if review_note %}
+  <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('practice.paper.review') }}</span></div>
+  {% endif %}
+  <form class="panel panel-pad quiz-form" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/practice/submit') }}" hx-target="#quiz-area" tabindex="-1" data-focus-heading>
+    <input type="hidden" name="quiz_id" value="{{ quiz.quiz_id }}">
+    <input type="hidden" name="topic_id" value="{{ quiz.topic_id }}">
+    <input type="hidden" name="n" value="{{ quiz.questions | length }}">
+    {% for q in quiz.questions %}
+    {% set qi = loop.index0 %}
+    <fieldset class="quiz-q{% if qi in flagged %} quiz-q-flagged{% endif %}">
+      <legend><span class="quiz-n">{{ t('practice.question_n', n=loop.index) }}</span>{{ q.text }}{% if qi in flagged %} <small class="muted">· {{ t('practice.paper.check_this') }}</small>{% endif %}</legend>
+      <input type="hidden" name="q_{{ qi }}" value="{{ q.text }}">
+      <div class="choices">
+        {% for c in q.choices %}
+        <label class="choice"><input type="radio" name="a_{{ qi }}" value="{{ c }}" required {% if picked[qi] is defined and picked[qi] == c %}checked{% endif %}><span dir="auto">{{ c }}</span></label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    {% endfor %}
+    <button class="btn btn-primary" type="submit">{{ t('practice.submit') }}</button>
+  </form>
+
+  {# On paper: print the quiz, solve it, photograph the answer sheet. #}
+  {% set ns = namespace(items=[]) %}
+  {% for q in quiz.questions %}{% set ns.items = ns.items + [{'text': q.text, 'choices': q.choices}] %}{% endfor %}
+  <section class="panel panel-pad">
+    <h3 class="panel-title">{{ t('practice.paper.title') }}</h3>
+    <p class="muted">{{ t('practice.paper.help') }}</p>
+    <div class="btn-row">
+      <a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/practice/' ~ quiz.quiz_id ~ '/sheet.pdf') }}">{{ icon('download', 16) }}<span>{{ t('practice.paper.download') }}</span></a>
+    </div>
+    <form class="photo-form" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/practice/' ~ quiz.quiz_id ~ '/grade') }}" hx-encoding="multipart/form-data"
+          hx-target="#quiz-area" hx-indicator="#grade-indicator">
+      <input type="hidden" name="topic_id" value="{{ quiz.topic_id }}">
+      <input type="hidden" name="quiz_json" value='{{ ns.items | tojson }}'>
+      <label class="photo-pick">
+        {{ icon('clip', 18) }}<span>{{ t('practice.paper.choose') }}</span>
+        <input type="file" name="photo" accept="image/png,image/jpeg,image/webp,image/heic" required>
+      </label>
+      <button class="btn btn-primary btn-sm" type="submit">{{ icon('upload', 16) }}<span>{{ t('practice.paper.grade') }}</span></button>
+    </form>
+    <div class="htmx-indicator inline-loading" id="grade-indicator"><span class="spinner"></span>{{ t('practice.paper.grading') }}</div>
+  </section>
+</div>

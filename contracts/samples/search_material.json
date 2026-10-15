@@ -1,0 +1,16 @@
+{
+  "chunks": [
+    {
+      "file_name": "biology_ch3.pdf",
+      "page": 12,
+      "text": "الميتوكوندريا هي العضية المسؤولة عن إنتاج الطاقة على شكل ATP.",
+      "topic_id": "t_energy"
+    },
+    {
+      "file_name": "biology_ch3.pdf",
+      "page": 13,
+      "text": "تحدث عملية التنفس الخلوي داخل الميتوكوندريا.",
+      "topic_id": "t_energy"
+    }
+  ]
+}

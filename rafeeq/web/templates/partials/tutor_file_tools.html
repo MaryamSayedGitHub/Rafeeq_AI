@@ -1,0 +1,11 @@
+{# Quiz / summary / flashcards of one study file. Needs room and study_file_id. #}
+{% set tool_id = 'tool-' ~ study_file_id ~ '-' ~ (turn_id or 'x') %}
+<div class="btn-row tq-tools">
+  {% for action, label, ic in [('quiz', 'tutor.quiz_me', 'quiz'), ('summary', 'tutor.summary_btn', 'list'), ('cards', 'tutor.cards_btn', 'book')] %}
+  <button class="btn btn-secondary btn-sm" type="button" hx-post="{{ u('/rooms/' ~ room.room_id ~ '/study/agent') }}"
+          hx-vals='{"action": "{{ action }}", "study_file_id": {{ study_file_id }}}' hx-target="#{{ tool_id }}" hx-swap="innerHTML"
+          hx-indicator="#{{ tool_id }}-wait">{{ icon(ic, 16) }}<span>{{ t(label) }}</span></button>
+  {% endfor %}
+</div>
+<div class="chat-indicator htmx-indicator" id="{{ tool_id }}-wait"><span class="spinner"></span>{{ t('tutor.working') }}</div>
+<div id="{{ tool_id }}"></div>

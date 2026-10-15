@@ -1,0 +1,46 @@
+{
+  "file_id": "f_61086e2c",
+  "quality_ok": true,
+  "retake_tip": "",
+  "type": "student_work",
+  "language": "en",
+  "confidence": 0.95,
+  "kind": "math",
+  "complete": true,
+  "needs_help": true,
+  "hint": "Re-check the arithmetic in this step.",
+  "lines": [
+    {
+      "i": 1,
+      "text": "2 + 3 = 5",
+      "status": "ok",
+      "hint": "",
+      "box": {
+        "x": 0.07,
+        "y": 0.1,
+        "width": 0.34,
+        "height": 0.1
+      }
+    },
+    {
+      "i": 2,
+      "text": "4 × 2 = 9",
+      "status": "error",
+      "hint": "Re-check the arithmetic in this step.",
+      "box": {
+        "x": 0.07,
+        "y": 0.47,
+        "width": 0.34,
+        "height": 0.1
+      }
+    }
+  ],
+  "citations": [
+    {
+      "file_name": "biology_ch3.pdf",
+      "page": 12
+    }
+  ],
+  "event_delivered": true,
+  "annotated_png_base64": null
+}

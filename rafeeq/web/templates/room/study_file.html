@@ -1,0 +1,30 @@
+{% extends "layout.html" %}
+{% block title %}{{ f.title }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1 dir="auto">{{ f.title }}</h1>
+    <p dir="auto">{{ f.question }}</p>
+  </div>
+  <a class="btn btn-soft" href="{{ u('/rooms/' ~ room.room_id ~ '/study-files') }}">{{ icon('folder', 16) }}<span>{{ t('tutor.files.all') }}</span></a>
+</div>
+
+<section class="panel panel-pad">
+  <div class="btn-row tq-badges">
+    <span class="badge badge-gray">{{ f.ts[:10] }}</span>
+    {% if f.pages %}<span class="badge badge-green">{{ t('tutor.pages_words', p=f.pages, w=f.words) }}</span>{% endif %}
+    {% for fmt in formats %}<a class="btn btn-soft btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/study-files/' ~ f.id ~ '/download', format=fmt) }}">{{ icon('download', 16) }}<span>{{ 'Word' if fmt == 'docx' else 'PDF' }}</span></a>{% endfor %}
+    <a class="btn btn-soft btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/study-files/' ~ f.id ~ '/download', format='md') }}">{{ icon('download', 16) }}<span>Markdown</span></a>
+    <form class="tq-delete" method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/study-files/' ~ f.id ~ '/delete') }}"
+        onsubmit="return confirm({{ t('tutor.files.delete_confirm') | tojson | forceescape }})">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button class="btn btn-danger btn-sm" type="submit" title="{{ t('tutor.files.delete') }}">{{ icon('x_circle', 16) }}<span>{{ t('tutor.files.delete') }}</span></button>
+</form>
+  </div>
+  {% set study_file_id = f.id %}
+  {% set turn_id = 'page' %}
+  {% include "partials/tutor_file_tools.html" %}
+</section>
+
+<section class="panel panel-pad tq-doc" dir="auto">{{ f.markdown | md }}</section>
+{% endblock %}

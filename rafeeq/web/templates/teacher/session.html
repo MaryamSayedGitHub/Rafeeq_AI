@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}{{ s.draft.topic or "جلسة" }} · رفيق{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/teacher.css">{% endblock %}
+{% block content %}
+<p><a href="/teacher" class="t-link">← لوحة المعلم</a></p>
+{% include "teacher/_review.html" %}
+{% endblock %}

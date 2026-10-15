@@ -1,0 +1,19 @@
+{% extends "shell.html" %}
+{% block title %}{{ t('parent.title') }}{% endblock %}
+{% block body_class %}parent-shared{% endblock %}
+{% block body %}
+<main id="main" class="parent-shared-main">
+  <div class="btn-row no-print parent-shared-top">
+    <a class="lang-toggle" href="{{ u('/lang/' ~ ('en' if lang == 'ar' else 'ar'), next=request.url.path) }}">{{ icon('globe', 18) }}<span>{{ t('lang.switch') }}</span></a>
+    {% if report %}<button type="button" class="btn btn-secondary btn-sm" onclick="window.print()">{{ icon('download', 16) }}<span>{{ t('parent.print') }}</span></button>{% endif %}
+  </div>
+  <section class="panel panel-pad">
+    {% if report %}
+      {% with r = report %}{% include "partials/parent_report_body.html" %}{% endwith %}
+    {% else %}
+      <h1>{{ t('parent.expired.title') }}</h1>
+      <p class="muted">{{ t('parent.expired.text') }}</p>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

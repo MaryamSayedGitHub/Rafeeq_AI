@@ -1,0 +1,37 @@
+{
+  "courses": [
+    {
+      "course_id": "c_7a31be90",
+      "title": "Biology 10 - Cells",
+      "description": "Everything about cells",
+      "published_at": "2026-10-12T22:00:00.000000+00:00",
+      "lessons": [
+        {
+          "lesson_id": "l_0b9a44cd",
+          "title": "Cell division",
+          "notes": "Watch the clip first",
+          "assets": [
+            {
+              "asset_id": "a_5d2e77b1",
+              "title": "Cell diagram",
+              "kind": "image",
+              "source_url": "",
+              "start_sec": null,
+              "end_sec": null,
+              "file_url": "/rooms/r_139edde3/courses/c_7a31be90/assets/a_5d2e77b1/file"
+            },
+            {
+              "asset_id": "a_1f3c9b2e",
+              "title": "Cell division explained",
+              "kind": "source_video",
+              "source_url": "https://www.youtube.com/watch?v=abc123&t=75s",
+              "start_sec": 75.0,
+              "end_sec": 130.0,
+              "file_url": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

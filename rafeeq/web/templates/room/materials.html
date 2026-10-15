@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state %}
+{% block title %}{{ t('tab.materials') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.materials') }}</h1>
+    <p>{{ t('materials.intro.' ~ user.role) }}</p>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="stack">
+    {% if user.role == 'teacher' %}
+    <section class="panel panel-pad">
+      <h2 class="panel-title">{{ t('materials.upload') }}</h2>
+      <form class="upload-form" method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/materials/upload') }}" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <label class="file-drop">
+          {{ icon('upload', 24) }}
+          <strong>{{ t('materials.choose') }}</strong>
+          <small data-file-name>{{ t('materials.upload_help') }}</small>
+          <input type="file" name="file" required accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.md,image/*" data-file-input>
+        </label>
+        <button class="btn btn-primary" type="submit">{{ icon('upload', 18) }}<span>{{ t('materials.upload') }}</span></button>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="panel">
+      {% include "partials/files_table.html" %}
+    </section>
+  </div>
+
+  <aside class="panel panel-pad">
+    <h2 class="panel-title">{{ t('materials.topics') }}</h2>
+    {% if topics_res.ok %}
+      {% set topics = topics_res.data.topics %}
+      {% if topics %}
+        <ul class="tag-list">{% for tp in topics %}<li class="tag">{{ tp.name }}</li>{% endfor %}</ul>
+      {% else %}
+        <p class="muted">{{ t('materials.topics.empty') }}</p>
+      {% endif %}
+    {% else %}
+      {{ section_state(t, topics_res) }}
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

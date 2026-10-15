@@ -1,0 +1,24 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: rafeeq
+      POSTGRES_PASSWORD: rafeeq
+      POSTGRES_DB: rafeeq
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env          # LLM keys for the teacher assistant
+        required: false
+    environment:
+      DATABASE_URL: postgresql://rafeeq:rafeeq@db:5432/rafeeq
+    depends_on:
+      - db
+volumes:
+  dbdata:

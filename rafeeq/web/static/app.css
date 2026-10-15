@@ -1,0 +1,8 @@
+:root { --navy: #1b2a6b; --bg: #f6f7fb; --line: #d6dcee; }
+body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: var(--bg); color: #1f2430; }
+.top { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; padding-block: 0.75rem; padding-inline: 1rem; background: #fff; border-block-end: 2px solid var(--line); }
+.brand { color: var(--navy); }
+nav { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-inline-start: auto; }
+nav a { padding-block: 0.4rem; padding-inline: 0.8rem; border-radius: 8px; color: var(--navy); text-decoration: none; }
+nav a.on { background: var(--navy); color: #fff; }
+main { max-inline-size: 60rem; margin-inline: auto; padding: 1.5rem 1rem; }

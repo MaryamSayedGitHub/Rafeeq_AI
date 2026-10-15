@@ -1,0 +1,7 @@
+{% if r.questions %}
+  {% set questions = r.questions %}
+  {% include "partials/tutor_quiz_block.html" %}
+  <p class="muted small">{{ t('tutor.quiz.from_m4') if r.source == 'm4' else t('tutor.quiz.from_text') }}</p>
+{% else %}
+  <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('tutor.tool_fail') }}</span></div>
+{% endif %}

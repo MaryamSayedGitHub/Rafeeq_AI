@@ -1,0 +1,39 @@
+<section class="panel panel-pad quiz-result" tabindex="-1" data-focus-heading>
+  <div class="score">
+    <span class="score-ring" dir="ltr">{{ result.score }}/{{ result.total }}</span>
+    <h2>{{ t('practice.score', score=result.score, total=result.total) }}</h2>
+  </div>
+
+  {% if result.mastery_change %}
+  <div class="mastery-change">
+    <h3 class="panel-title">{{ t('practice.mastery_change') }}</h3>
+    <ul>
+      {% for m in result.mastery_change %}
+      {% set pts = (m.change * 100) | round | int %}
+      <li><span>{{ topic_names.get(m.topic_id, m.topic_id) }}</span>
+        <span class="delta {{ 'up' if pts > 0 else 'down' if pts < 0 else '' }}" dir="ltr">{{ '+' if pts > 0 else '' }}{{ pts }}</span></li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <ol class="review-list">
+    {% for r in rows %}
+    <li>
+      <strong>{{ r.q }}</strong>
+      <span class="muted">{{ t('practice.your_answer', a=r.a) }}</span>
+      {% if r.e %}<p>{{ r.e }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+
+  <div class="btn-row">
+    {% if quiz_id %}
+    <a class="btn btn-secondary" href="{{ u('/rooms/' ~ room.room_id ~ '/practice/' ~ quiz_id ~ '/report.pdf') }}">{{ icon('download', 16) }}<span>{{ t('practice.report_pdf') }}</span></a>
+    {% endif %}
+    <a class="btn btn-secondary" href="{{ u('/rooms/' ~ room.room_id ~ '/practice', topic=topic_id) }}">{{ icon('refresh', 16) }}<span>{{ t('practice.again') }}</span></a>
+    {% if topic_id %}
+    <a class="btn btn-soft" href="{{ u('/rooms/' ~ room.room_id ~ '/study', q=t('practice.ask_prefill', topic=topic_names.get(topic_id, ''))) }}">{{ icon('chat', 16) }}<span>{{ t('practice.ask_about') }}</span></a>
+    {% endif %}
+  </div>
+</section>

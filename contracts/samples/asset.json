@@ -1,0 +1,22 @@
+{
+  "asset_id": "a_1f3c9b2e",
+  "kind": "source_video",
+  "title": "Cell division explained",
+  "origin": "external",
+  "status": "ready",
+  "error": "",
+  "source_url": "https://www.youtube.com/watch?v=abc123&t=75s",
+  "start_sec": 75.0,
+  "end_sec": 130.0,
+  "provider": "",
+  "model": "",
+  "settings": {},
+  "room_id": "r_139edde3",
+  "session_id": "",
+  "slide_index": null,
+  "parent_asset_id": "",
+  "version": 1,
+  "file_url": null,
+  "created_at": "2026-10-12T21:00:00+00:00",
+  "updated_at": "2026-10-12T21:00:00+00:00"
+}

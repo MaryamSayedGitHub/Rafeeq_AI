@@ -1,0 +1,5 @@
+{% if r.text %}
+  <div class="tq-rewrite" dir="auto">{{ r.text }}</div>
+{% else %}
+  <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('tutor.tool_fail') }}</span></div>
+{% endif %}

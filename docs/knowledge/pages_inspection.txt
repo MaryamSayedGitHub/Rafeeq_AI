@@ -1,0 +1,158 @@
+﻿
+========== PAGE 135 | 1145763331aa-p0135-c000 ==========
+NOTE
+When you use a modern commercial LLM, the outputs you get are not the ones
+mentioned earlier in the strict meaning of a â€œlanguage model.â€ Passing â€œThe
+Shawshankâ€ to a chat LLM like GPT-4 produces an output:
+"The Shawshank Redemption" is a 1994 film directed by
+Frank Darabont and is based on the novella "Rita
+Hayworth and Shawshank Redemption" written by Stephen
+King. ...etc.
+This is because raw language models (like GPT-3) are difficult for people to properly
+utilize. This is why the language model is then trained on instruction-tuning and human
+preference and feedback fine-tuning to match peopleâ€™s expectations of what the model
+should output.
+The attention layer at a glance
+Context is vital in order to properly model language. Simple memorization
+and interpolation based on the previous token can only take us so far. We
+know that because this was one of the leading approaches to build language
+models before neural networks (see Chapter 3, â€œN-gram Language Modelsâ€
+of Speech and Language Processing by Daniel Jurafsky and James H.
+Martin).
+Attention is a mechanism that helps the model incorporate context as itâ€™s
+processing a specific token. Think of the following prompt:
+â€œThe dog chased the squirrel because itâ€
+For the model to predict what comes after â€œit,â€ it needs to know what â€œitâ€
+refers to. Does it refer to the dog or the squirrel?
+In a trained Transformer LLM, the attention mechanism makes that
+determination. Attention adds information from the context into the
+representation of the â€œitâ€ token. We can see a simple version of that in
+FigureÂ 3-14.
+
+========== PAGE 141 | 1145763331aa-p0141-c000 ==========
+Figure 3-19. Attention is carried out by the interaction of the queries, keys, and values matrices.
+Those are produced by multiplying the layerâ€™s inputs with the projection matrices.
+Self-attention: Relevance scoring
+In a generative Transformer, weâ€™re generating one token at a time. This
+means weâ€™re processing one position at a time. So the attention mechanism
+here is only concerned with this one position, and how information from
+other positions can be pulled in to inform this position.
+The relevance scoring step of attention is conducted by multiplying the
+query vector of the current position with the keys matrix. This produces a
+score stating how relevant each previous token is. Passing that by a softmax
+operation normalizes these scores so they sum up to 1. FigureÂ 3-20 shows
+the relevance score resulting from this calculation.
+
+========== PAGE 144 | 1145763331aa-p0144-c000 ==========
+More Efficient Attention
+The area that gets the most focus from the research community is the
+attention layer of the Transformer. This is because the attention calculation
+is the most computationally expensive part of the process.
+Local/sparse attention
+As Transformers started getting larger, ideas like sparse attention
+(â€œGenerating long sequences with sparse transformersâ€) and sliding
+window attention (â€œLongformer: The long-document transformerâ€)
+provided improvements for the efficiency of the attention calculation.
+Sparse attention limits the context of previous tokens that the model can
+attend to, as we can see in FigureÂ 3-22.
+Figure 3-22. Local attention boosts performance by only paying attention to a small number of
+previous positions.
+One model that incorporates such a mechanism is GPT-3. But it does not
+use that for all the Transformer blocksâ€”the quality of the generation would
+vastly degrade if the model could only see a small number of previous
+tokens. The GPT-3 architecture interweaved full-attention and efficient-
+attention Transformer blocks. So the Transformer blocks alternate between
+full attention (e.g., blocks 1 and 3) and sparse attention (e.g., blocks 2 and
+4).
+To demonstrate different kinds of attention, review FigureÂ 3-23, which
+shows how different attention mechanisms work. Each figure shows which
+previous tokens (light blue) can be attended to when processing the current
+token (in dark blue).
+
+========== PAGE 379 | 1145763331aa-p0379-c000 ==========
+Instead of building the architecture from scratch, BLIP-2 bridges the vision-
+language gap by building a bridge, named the Querying Transformer (Q-
+Former), that connects a pretrained image encoder and a pretrained LLM.5
+By leveraging pretrained models, BLIP-2 only needs to train the bridge
+without needing to train the image encoder and LLM from scratch. It makes
+great use of the technology and models that are already out there! This
+bridge is illustrated in FigureÂ 9-16.
+Figure 9-16. The Querying Transformer is the bridge between vision (ViT) and text (LLM) that is the
+only trainable component of the pipeline.
+To connect the two pretrained models, the Q-Former mimics their
+architectures. It has two modules that share their attention layers:
+An Image Transformer to interact with the frozen Vision
+Transformer for feature extraction
+A Text Transformer that can interact with the LLM
+The Q-Former is trained in two stages, one for each modality, as illustrated
+in FigureÂ 9-17.
+In step 1, image-document pairs are used to train the Q-Former to represent
+both images and text. These pairs are generally captions of images, as we
+have seen before when training CLIP.
+The images are fed to the frozen ViT to extract vision embeddings. These
+embeddings are used as the input of Q-Formerâ€™s ViT. The captions are used
+as the input of Q-Formerâ€™s Text Transformer.
+
+========== PAGE 381 | 1145763331aa-p0381-c000 ==========
+Figure 9-18. In step 1, the output of the frozen ViT is used together with its caption and trained on
+three contrastive-like tasks to learn visual-text representations.
+In step 2, the learnable embeddings derived from step 1 now contain visual
+information in the same dimensional space as the corresponding textual
+information. The learnable embeddings are then passed to the LLM. In a
+way, these embeddings serve as soft visual prompts that condition the LLM
+on the visual representations that were extracted by the Q-Former.
+There is also a fully connected linear layer in between them to make sure
+that the learnable embeddings have the same shape as the LLM expects.
+This second step of converting vision to language is represented in
+FigureÂ 9-19.
+Figure 9-19. In step 2, the learned embeddings from the Q-Former are passed to the LLM through a
+projection layer. The projected embeddings serve as a soft visual prompt.
+
+========== PAGE 501 | 1145763331aa-p0501-c000 ==========
+Figure 12-16. Quantizing weights that are close to one another results in the same reconstructed
+weights thereby removing any differentiating factor.
+Instead, the authors of QLoRA, a quantized version of LoRA, found a way
+to go from a higher number of bits to a lower value and vice versa without
+differentiating too much from the original weights.6
+They used blockwise quantization to map certain blocks of higher precision
+values to lower precision values. Instead of directly mapping higher
+precision to lower precision values, additional blocks are created that allow
+for quantizing similar weights. As shown in FigureÂ 12-17, this results in
+values that can be accurately represented with lower precision.
+Figure 12-17. Blockwise quantization can accurately represent weights in lower precision through
+quantization blocks.
+
+========== PAGE 505 | 1145763331aa-p0505-c000 ==========
+"Knock, knock. Who's there? Hike"?</s>
+<|assistant|>
+Sure! Knock, knock. Who's there? Hike. Hike who? Hike up your
+pants, it's cold outside!</s>
+<|user|>
+Can you tell me another knock-knock joke based on the same text
+material "Knock, knock. Who's there? Hike"?</s>
+<|assistant|>
+Of course! Knock, knock. Who's there? Hike. Hike who? Hike your
+way over here and let's go for a walk!</s>
+Model Quantization
+Now that we have our data, we can start loading in our model. This is where
+we apply the Q in QLoRA, namely quantization. We use the
+bitsandbytes package to compress the pretrained model to a 4-bit
+representation.
+In BitsAndBytesConfig, you can define the quantization scheme. We
+follow the steps used in the original QLoRA paper and load the model in 4-
+bit (load_in_4bit) with a normalized float representation
+(bnb_4bit_quant_type) and double quantization
+(bnb_4bit_use_double_quant):
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer,
+BitsAndBytesConfig
+model_name = "TinyLlama/TinyLlama-1.1B-intermediate-step-1431k-
+3T"
+# 4-bit quantization configuration - Q in QLoRA
+bnb_config = BitsAndBytesConfig(
+load_in_4bit=True, # Use 4-bit precision model loading
+bnb_4bit_quant_type="nf4", # Quantization type
+bnb_4bit_compute_dtype="float16", # Compute dtype
+bnb_4bit_use_double_quant=True, # Apply nested quantization
+)
+# Load the model to train on the GPU

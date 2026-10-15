@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state %}
+{% block title %}{{ t('tab.studio') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <a class="back-link" href="{{ u('/rooms/' ~ room.room_id ~ '/studio') }}">{{ icon('arrow', 16, 'back') }}<span>{{ t('tab.studio') }}</span></a>
+  </div>
+</div>
+{% if session %}
+  {% include "partials/session.html" %}
+{% else %}
+  <section class="panel panel-pad">{{ section_state(t, res) }}</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,16 @@
+{
+  "rooms": [
+    {
+      "room_id": "r_bio101",
+      "name": "أحياء 101 - د. منى",
+      "kind": "course",
+      "files_ready": 3
+    },
+    {
+      "room_id": "r_own_sara",
+      "name": "مذاكرتي الخاصة",
+      "kind": "personal",
+      "files_ready": 1
+    }
+  ]
+}

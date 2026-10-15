@@ -1,0 +1,4 @@
+* text=auto eol=lf
+# M2 benchmark files are hash-frozen (run_eval.py records their sha256): keep them byte-for-byte
+rafeeq/knowledge/eval/benchmark/*.jsonl -text
+rafeeq/knowledge/eval/benchmark/*.sha256 -text

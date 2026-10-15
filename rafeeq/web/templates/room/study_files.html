@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% block title %}{{ t('tab.study-files') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.study-files') }}</h1>
+    <p>{{ t('tutor.files.intro') }}</p>
+  </div>
+  <a class="btn btn-primary" href="{{ u('/rooms/' ~ room.room_id ~ '/study') }}">{{ icon('chat', 16) }}<span>{{ t('tutor.files.new') }}</span></a>
+</div>
+
+<section class="panel panel-pad">
+  {% if error %}
+    <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ error }}</span></div>
+  {% elif not files %}
+    <p class="muted">{{ t('tutor.files.empty') }}</p>
+  {% else %}
+    <ul class="tq-files">
+      {% for f in files %}
+      <li>
+        <div>
+          <a href="{{ u('/rooms/' ~ room.room_id ~ '/study-files/' ~ f.id) }}"><strong dir="auto">{{ f.title }}</strong></a>
+          <div class="muted small" dir="auto">{{ f.question }}</div>
+        </div>
+        <div class="btn-row">
+          <span class="badge badge-gray">{{ f.ts[:10] }}</span>
+          {% if f.pages %}<span class="badge badge-green">{{ t('tutor.pages_words', p=f.pages, w=f.words) }}</span>{% endif %}
+          <form class="tq-delete" method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/study-files/' ~ f.id ~ '/delete') }}"
+        onsubmit="return confirm({{ t('tutor.files.delete_confirm') | tojson | forceescape }})">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <button class="btn btn-danger btn-sm" type="submit" title="{{ t('tutor.files.delete') }}">{{ icon('x_circle', 16) }}<span>{{ t('tutor.files.delete') }}</span></button>
+</form>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</section>
+{% endblock %}

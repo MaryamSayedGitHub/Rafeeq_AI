@@ -1,0 +1,108 @@
+{# The review panel. `s` is a LecturerSession (see contracts/openapi.yaml). #}
+<section class="t-card t-review" id="session-{{ s.session_id }}">
+  {% set d = s.draft %}
+
+  {% if s.status == "done" %}
+  <h2>الملفات جاهزة ✓</h2>
+  <p dir="auto"><strong>{{ d.topic }}</strong>{% if d.course_name %} · {{ d.course_name }}{% endif %}</p>
+  <div class="t-files">
+    {% for f in s.files %}<a href="{{ f.url }}" download class="t-file t-file-big">{{ f.name }}</a>{% endfor %}
+  </div>
+  <p class="t-muted">الجلسة محفوظة في «جلساتي». <a href="/teacher" class="t-link">ابدأ جلسة جديدة</a></p>
+
+  {% elif s.status == "incomplete" %}
+  <h2>الجلسة لم تكتمل</h2>
+  <p>توقفت الجلسة قبل أن تجهز المسودة. جرّب مرة أخرى.</p>
+
+  {% else %}
+  <div class="t-review-head">
+    <h2>المسودة جاهزة للمراجعة</h2>
+    <a href="/teacher/ui/sessions/{{ s.session_id }}" class="t-link t-small">رابط هذه المسودة</a>
+  </div>
+  <p dir="auto"><strong>{{ d.topic }}</strong>{% if d.course_name %} · {{ d.course_name }}{% endif %}</p>
+  {% if s.revision_count %}<p class="t-muted">نسخة معدّلة رقم {{ s.revision_count }}</p>{% endif %}
+  {% if s.reasoning %}
+  <details class="t-small"><summary>لماذا اختار المساعد هذه الخطوات</summary><p dir="auto">{{ s.reasoning }}</p>
+    {% if s.memory %}<p class="t-muted">استخدم ما يتذكره عنك:</p><ul dir="auto">{% for m in s.memory %}<li>{{ m }}</li>{% endfor %}</ul>{% endif %}
+  </details>
+  {% endif %}
+
+  {% if d.outline %}
+  <h3>الخطة</h3>
+  <ol dir="auto" class="t-outline">{% for o in d.outline %}<li>{{ o }}</li>{% endfor %}</ol>
+  {% endif %}
+
+  {% if d.slides %}
+  <h3>الشرائح ({{ d.slides | length }})</h3>
+  <div class="t-slides">
+    {% for sl in d.slides %}
+    <article class="t-slide" dir="auto">
+      <div class="t-slide-n">{{ loop.index }}</div>
+      <h4>{{ sl.title }}</h4>
+      <ul>{% for b in sl.bullets %}<li>{{ b }}</li>{% endfor %}</ul>
+      {% if sl.diagram_steps %}
+      <ol class="t-flow">{% for step in sl.diagram_steps %}<li>{{ step }}</li>{% endfor %}</ol>
+      {% endif %}
+      {% if sl.notes %}<details class="t-small"><summary>ملاحظات المحاضر</summary><p>{{ sl.notes }}</p></details>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if d.code_examples %}
+  <h3>أمثلة الكود ({{ d.code_examples | length }})</h3>
+  {% for ex in d.code_examples %}
+  <article class="t-code">
+    <div class="t-code-head">
+      <strong dir="auto">{{ ex.title }}</strong>
+      {% if ex.verified is sameas true %}<span class="t-badge t-ok">اشتغل ✓</span>
+      {% elif ex.verified is sameas false %}<span class="t-badge t-bad">لم يعمل بعد التصحيح</span>
+      {% else %}<span class="t-badge">لم يُجرَّب</span>{% endif %}
+    </div>
+    <pre dir="ltr"><code>{{ ex.code }}</code></pre>
+    {% if ex.output %}<pre dir="ltr" class="t-output">{{ ex.output }}</pre>{% endif %}
+    {% if ex.explanation %}<p dir="auto">{{ ex.explanation }}</p>{% endif %}
+  </article>
+  {% endfor %}
+  {% endif %}
+
+  {% if d.quiz %}
+  <h3>الاختبار ({{ d.quiz | length }} أسئلة)</h3>
+  <ol class="t-quiz" dir="auto">
+    {% for q in d.quiz %}
+    <li>
+      <p>{{ q.question }}</p>
+      <ul>
+        {% for opt in q.options %}
+        <li class="{{ 't-correct' if loop.index0 == q.answer_index }}">{{ opt }}</li>
+        {% endfor %}
+      </ul>
+      {% if q.explanation %}<p class="t-muted t-small">{{ q.explanation }}</p>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+
+  <div class="t-decide">
+    <form hx-post="/teacher/ui/sessions/{{ s.session_id }}/decision"
+          hx-target="#session-{{ s.session_id }}" hx-swap="outerHTML"
+          hx-indicator="#deciding-{{ s.session_id }}" hx-disabled-elt="find button">
+      <input type="hidden" name="decision" value="approve">
+      <button class="t-btn">موافق، اصنع الملفات</button>
+    </form>
+
+    {% if s.revisions_left > 0 %}
+    <form class="t-revise" hx-post="/teacher/ui/sessions/{{ s.session_id }}/decision"
+          hx-target="#session-{{ s.session_id }}" hx-swap="outerHTML"
+          hx-indicator="#deciding-{{ s.session_id }}" hx-disabled-elt="find button">
+      <input type="hidden" name="decision" value="revise">
+      <textarea name="feedback" rows="2" required dir="auto" placeholder="مثال: أضف مثالًا عن *args واجعل الأسئلة أصعب"></textarea>
+      <button class="t-btn t-btn-light">اطلب تعديل <small>(متبقٍ {{ s.revisions_left }})</small></button>
+    </form>
+    {% else %}
+    <p class="t-muted">وصلت للحد الأقصى من التعديلات. وافق على المسودة أو ابدأ جلسة جديدة.</p>
+    {% endif %}
+    <span id="deciding-{{ s.session_id }}" class="htmx-indicator t-muted">جاري العمل…</span>
+  </div>
+  {% endif %}
+</section>

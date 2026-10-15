@@ -1,0 +1,13 @@
+{
+  "weak_topics": [
+    {
+      "topic_id": "t_genetics",
+      "score": 0.35
+    },
+    {
+      "topic_id": "t_energy",
+      "score": 0.55
+    }
+  ],
+  "level": "beginner"
+}

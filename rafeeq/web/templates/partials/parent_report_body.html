@@ -1,0 +1,49 @@
+{# The parent report itself, shared by the teacher's page and the public share page. `r` = ParentReport. #}
+<article class="parent-report">
+  <header class="pr-head">
+    <div>
+      <p class="pr-kicker">{{ t('parent.kicker') }}</p>
+      <h1>{{ r.student_name or t('parent.student') }}</h1>
+      <p class="muted">{{ r.room_name }} · <span dir="ltr">{{ r.period['from'] }} → {{ r.period['to'] }}</span></p>
+    </div>
+    <span class="brand-mark pr-logo">{{ icon('book', 26) }}</span>
+  </header>
+
+  <section class="pr-stats">
+    <div class="pr-stat"><strong dir="ltr">{{ r.quizzes_taken }}</strong><span>{{ t('parent.quizzes') }}</span></div>
+    <div class="pr-stat"><strong dir="ltr">{% if r.average_score is not none %}{{ (r.average_score * 100) | round | int }}%{% else %}—{% endif %}</strong><span>{{ t('parent.score') }}</span></div>
+    <div class="pr-stat"><strong dir="ltr">{{ r.questions_asked }}</strong><span>{{ t('parent.asked') }}</span></div>
+  </section>
+
+  <section class="pr-section">
+    <h2>{{ t('parent.summary') }}</h2>
+    {% for line in r.summary %}<p>{{ line }}</p>{% endfor %}
+  </section>
+
+  {% if r.topics %}
+  <section class="pr-section">
+    <h2>{{ t('parent.topics') }}</h2>
+    <ul class="pr-topics">
+      {% for tp in r.topics %}
+      <li>
+        <span class="pr-topic-name" dir="auto">{{ tp.name }}</span>
+        <span class="pr-bar"><span class="pr-fill pr-{{ tp.status }}" style="inline-size: {{ (tp.mastery * 100) | round | int }}%"></span></span>
+        <span class="pr-pct" dir="ltr">{{ (tp.mastery * 100) | round | int }}%</span>
+        {% if tp.change is not none and tp.change != 0 %}
+          <small class="pr-change {{ 'up' if tp.change > 0 else 'down' }}" dir="ltr">{{ '+' if tp.change > 0 }}{{ (tp.change * 100) | round | int }}</small>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {% if r.asked_about %}
+  <section class="pr-section">
+    <h2>{{ t('parent.asked_about') }}</h2>
+    <ul class="tag-list">{% for n in r.asked_about %}<li class="tag" dir="auto">{{ n }}</li>{% endfor %}</ul>
+  </section>
+  {% endif %}
+
+  <footer class="pr-foot muted">{{ t('parent.footer') }}</footer>
+</article>
