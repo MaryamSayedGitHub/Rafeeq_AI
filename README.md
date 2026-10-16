@@ -1,21 +1,63 @@
 # Rafeeq · رفيق
 
-A multi-agent learning copilot for students and teachers, Arabic-first with an English toggle. Built as an NTI AI capstone project.
+![Rafeeq — an Arabic-first AI learning companion](docs/images/rafeeq-banner.png)
+
+> **Every teacher sees. Every student understands.**
+
+An Arabic-first AI learning companion that connects teachers, students and parents around the teacher's own material. Arabic is the default, with an English toggle. Built as an NTI AI capstone project (Education domain, team of 5).
+
+*Rafeeq* means "companion". Each class gets one shared room. AI agents answer only from the teacher's own slides and books, and the teacher stays in charge of what students receive.
+
+## The problem
+
+One teacher cannot see thirty minds at once. Egypt has about 25.8M students in school and 1.26M teachers. Teachers spend around 12 hours a week on planning and marking, and up to 75% of final-year secondary students pay for private tutoring. Struggling students stay invisible until the exam, and families pay to fill the gap. *(Sources: UNESCO GEM / World Education Blog 2025; OECD TALIS; World Bank via Egyptian Streets 2026.)*
+
+## What Rafeeq does
 
 Rafeeq combines a RAG tutor grounded in the course material, a student-modeling layer that predicts weak topics, agents for planning, quizzing and reporting, handwriting/photo recognition with hints (Snap & Ask), and a teacher dashboard.
 
-## Features
+| For | Features |
+|---|---|
+| **Students** | Cited answers · handwriting check with one hint at a time · quizzes that come back after 1, 7 and 30 days · a "what to do next" plan |
+| **Teachers** | See who is struggling and on which topic · one-click lesson studio (slides, code examples, quiz; the teacher approves before anything is built) · AI-drafted replies for approval |
+| **Parents** | A weekly Arabic report by private link, written from fixed templates so nothing is invented |
 
-- **Ask** — a tutor that answers only from the room's own material, with page citations, in Arabic or English.
-- **Snap & Ask** — photograph a question or your own worked solution; a vision-language model reads it and the tutor answers or checks it.
-- **Quiz** — generated per topic, graded automatically, feeding back into the student's profile.
-- **My plan** — a "what to do next" suggestion based on weak topics.
-- **Rooms** — a course room per teacher, with student uploads and (proposed) a personal study room with no teacher.
-- **Teacher dashboard** — class-wide insights, a per-topic report, and an assistant that drafts replies for approval.
+### Weekly loop
+
+1. **Upload**: the teacher adds slides and books to the class room.
+2. **Understand**: Rafeeq reads and indexes every page, in Arabic and English.
+3. **Learn**: students ask, snap their work and take quizzes.
+4. **Detect**: Rafeeq tracks each student's weak topics.
+5. **Act**: the teacher drafts a review lesson in one click.
+6. **Inform**: parents receive a clear weekly report.
+
+Steps 3 to 6 repeat every week.
+
+### Feature list
+
+- **Ask**: a tutor that answers only from the room's own material, with page citations, in Arabic or English. If the answer is not in the material it says so.
+- **Snap & Ask**: photograph a question or your own worked solution; a vision-language model reads it and the tutor answers or checks it.
+- **Quiz**: generated per topic, graded automatically, feeding back into the student's profile.
+- **My plan**: a "what to do next" suggestion based on weak topics.
+- **Rooms**: a course room per teacher, with student uploads and (proposed) a personal study room with no teacher.
+- **Teacher dashboard**: class-wide insights, a per-topic report, and an assistant that drafts replies for approval.
+- **Lecturer studio and parent reports**: slides, code examples and a quiz drafted for teacher approval; a weekly parent summary.
+- **Video, voice and images** (in testing): story videos, narration and image editing for lessons.
 
 ## Stack
 
-FastAPI + Jinja2 + HTMX (one server-rendered app, no separate frontend build), Postgres with pgvector, Docker for local development, deployed on Render. Dependencies are managed with [uv](https://docs.astral.sh/uv/).
+FastAPI + Jinja2 + HTMX (one server-rendered app, no separate frontend build), LangGraph agents, Postgres with pgvector, Docker for local development, deployed on Render. Dependencies are managed with [uv](https://docs.astral.sh/uv/).
+
+**Models.** Every model is called through a configurable provider, so any of them can be swapped.
+
+| Role | Local development default | Hosted configuration |
+|---|---|---|
+| Tutor answers | Ollama `qwen3:8b` | Gemini 3.5 Flash-Lite |
+| Router, Snap, quiz, lessons | Ollama `qwen3:8b` | Qwen 27B (Groq) |
+| Handwriting reader | `qwen2.5vl:7b` (or Gemini) | vision model via `SNAP_READER` |
+| Search and reranking | bge-m3 (local) + FAISS + BM25 | same |
+| Web search (Level 2) | Tavily | Tavily |
+| Story video / voice | n/a | Wan 2.6 (720p) / edge-tts |
 
 ## Run it locally
 
@@ -32,6 +74,88 @@ Open http://127.0.0.1:8000 — you should see the Arabic home page.
 docker compose up --build
 ```
 
+## How it is built
+
+One app, one router, specialised agents:
+
+![Rafeeq architecture: people, web app, Copilot router, agents, knowledge, models](docs/images/rafeeq-architecture.png)
+
+The full set of diagrams (every feature workflow plus architecture and deployment) is in **[docs/architecture.md](docs/architecture.md)**.
+
+```mermaid
+flowchart TB
+    subgraph CLIENT["Browser"]
+        ST[Student / Teacher / Parent]
+        UI["Jinja2 + HTMX UI<br/>Arabic-first, EN toggle"]
+    end
+    subgraph APP["FastAPI app (rafeeq.main)"]
+        COP["M1 Copilot router<br/>ask · quiz · check work · plan"]
+        M3["M3 Tutor & Snap<br/>LangGraph agent, citations, uncertainty"]
+        KNOW["M2 Knowledge<br/>hybrid retrieval"]
+        QUIZ["M4 Quiz & Profile"]
+        TEACH["M5 Teacher tools"]
+    end
+    subgraph AI["AI services"]
+        LLM[LLM]
+        VLM[Vision model]
+        TAV[Tavily]
+    end
+    subgraph DATA["Persistence"]
+        PG[("Postgres + pgvector")]
+        FS[("data/ folder")]
+    end
+    ST --> UI --> COP
+    COP --> M3
+    M3 --> KNOW
+    M3 --> QUIZ
+    M3 --> TAV
+    M3 --> VLM
+    M3 --> LLM
+    KNOW --> PG
+    QUIZ --> PG
+    TEACH --> PG
+    M3 --> FS
+    UI --> TEACH
+```
+
+### Modules
+
+| Module | Responsibility |
+|---|---|
+| **M1 — Copilot & UI** | User-facing interface; routes each message (keywords, then LLM, then rules) to ask / check work / quiz / plan / clarify |
+| **M2 — Knowledge & RAG** | Content indexing, hybrid retrieval (bge-m3 + FAISS + BM25), grounded answers |
+| **M3 — Tutor & Snap** | Guided tutoring, citations, uncertainty checks, handwritten-work analysis |
+| **M4 — Quiz & Student Profile** | Quiz generation and grading, learning events, student profile, review data |
+| **M5 — Teacher Tools** | Dashboard, class insights, reports, teacher-approved replies |
+
+`contracts/openapi.yaml` and `contracts/samples/` define every route and JSON shape between modules.
+
+```mermaid
+flowchart LR
+    M1["M1 Copilot & UI"] -->|"tutor/act, ask, snap"| M3["M3 Tutor & Snap"]
+    M3 -->|"POST /search; GET topics; GET sources/page"| M2["M2 Knowledge"]
+    M3 -->|"POST /events: question, understood"| M4["M4 Quiz & Profile"]
+    M1 -->|"POST /quiz; /quiz/id/submit; GET /next-step; /profile/summary"| M4
+    M3 -->|"GET instructor/questions; /frequent; POST publish"| M5["M5 Teacher"]
+    M4 -->|"profile and learning events"| M5
+    M2 -.->|"fallback when a route is missing"| SMP["Contract sample data"]
+    M4 -.-> SMP
+```
+
+### Feature workflows (see [docs/architecture.md](docs/architecture.md) for the diagrams)
+
+1. Ask, Level 1: grounded tutoring with citation validation
+2. Ask, Level 2: deeper research into a 1–15 page study file
+3. Guided hints for math and code (check, 3 hints, full solution)
+4. Snap & Ask: photo and handwriting analysis
+5. Quiz
+6. Review: spaced repetition (day 1, 7, 30)
+7. My plan
+8. Copilot message routing
+9. Rooms and course materials
+10. Study files
+11. Teacher dashboard
+
 ## The student pages
 
 The site opens on `/` with every page in the top bar, in Arabic or English (the **EN / عربي** switch, kept in a cookie).
@@ -45,7 +169,26 @@ The site opens on `/` with every page in the top bar, in Arabic or English (the 
 | **Review** `/review` | Mistakes come back after 1, 7 and 30 days until they stick. |
 | **My plan, Rooms** | M4's next step and weak topics; the rooms. |
 
-M2 and M4 are called exactly as `contracts/openapi.yaml` says (`rafeeq/tutor/m2.py`, `rafeeq/tutor/m4.py`): M2 `/search`, `/rooms/{id}/topics`, `/sources/page`; M4 `/quiz`, `/quiz/{id}/submit`, `/next-step`, `/profile/summary`, `/events` (`question` and `understood`). Until their routes exist the pages use the agreed sample data and say so on screen. `M2_BASE_URL`, `M4_BASE_URL`, `TUTOR_SAMPLE_FALLBACK=0` in `.env`. Settings: `LLM_PROVIDER=ollama`, `OLLAMA_MODEL=qwen3:8b`, `TAVILY_API_KEY`, `SNAP_VISION_MODEL=qwen2.5vl:7b`. Level 2, Snap and Review data are kept in the git-ignored `data/` folder.
+M2 and M4 are called exactly as `contracts/openapi.yaml` says (`rafeeq/tutor/m2.py`, `rafeeq/tutor/m4.py`): M2 `/search`, `/rooms/{id}/topics`, `/sources/page`; M4 `/quiz`, `/quiz/{id}/submit`, `/next-step`, `/profile/summary`, `/events` (`question` and `understood`). Until their routes exist the pages use the agreed sample data and say so on screen.
+
+## Configuration
+
+Set these in `.env` (locally) or in the Render environment:
+
+| Variable | Purpose |
+|---|---|
+| `LLM_PROVIDER`, `OLLAMA_MODEL` | Which LLM provider and model to use (default `ollama`, `qwen3:8b`) |
+| `TAVILY_API_KEY` | Web search for Level 2 |
+| `SNAP_VISION_MODEL`, `SNAP_READER` | Handwriting reader (`qwen2.5vl:7b`; `ollama` or `gemini`; baselines `easyocr`, `paddleocr`) |
+| `M2_BASE_URL`, `M4_BASE_URL` | Where to reach M2 and M4 |
+| `EVENTS_URL` | Where QuestionEvents are posted (M4) |
+| `M5_PUBLISH_URL` | Where approved teacher replies are published |
+| `INSTRUCTOR_PIN` | When set, required as a header on the instructor routes |
+| `TUTOR_SAMPLE_FALLBACK=0` | Turn off the sample-data fallback |
+| `RAFEEQ_CONNECT_M3=0` | Switch off the M3 connection (tests do) |
+| `SNAP_MARK_UNCERTAIN` | Reader marks what it cannot see (default 1) |
+
+Level 2, Snap and Review data are kept in the git-ignored `data/` folder.
 
 ## M3 tutor API and the handwriting measurements
 
@@ -78,6 +221,47 @@ uv run python -m rafeeq.snap.evaluate --readers easyocr ollama --presets raw pre
 - **Report**: `python -m rafeeq.snap.report --cer-from results/results.csv --cer-label "..."` (or `--run-cer` on your photos) writes `results/report.md` and `report.json`: CER with/without preprocessing, VLM vs OCR baseline, step-status accuracy, first-error localisation, hint relevance (keyword proxy), hint leaks, uncertainty handling, citation validity. Your own labelled cases go in `data/eval/work_cases.json` and `data/eval/questions.json`; a metric with no data says NOT RUN.
 - **Adversarial tests**: `tests/test_adversarial.py` (blurry, dark, faded, rotated, upside down, cropped, tiny, blank, crossed out, ambiguous sign, mixed Arabic/English, incomplete, bad uploads, solution leaks, invented citations, retries and fallbacks).
 
+## Evaluation results
+
+Every AI part is scored by a script against a frozen test set (locked by a SHA-256 hash), so later results can be compared on the same baseline. Reports (`report.md`, `report.json`) are committed next to the code.
+
+| Part | Result | Test set |
+|---|---|---|
+| Hybrid search | **100% Hit@5**, MRR 0.788 | 42 held-out questions |
+| Handwriting reading (CER) | **0.53 → 0.13** after OpenCV preprocessing | vision model, raw vs preprocessed, 20 images |
+| Step checking | **36 / 38** steps judged correctly; no hint leaked a solution | 14 test cases |
+| Automated tests | **274** pass, plus every sample checked against the API contract | `uv run pytest` |
+
+> **Caveat.** The test sets are small and the handwriting images are synthetic, so these numbers show the pipeline works, not final accuracy. Re-measure on real photos (see above) before quoting them as results.
+
+Planned: a results page for teachers that reads the same report files, and an automatic run on every code change.
+
+## Cost
+
+AI costs about **$0.44 per student per month** (a 30-student class with its teacher is about $13/month; 1,000 students about $436/month including story video). A student uses about 447k tokens a month, roughly $0.36 of LLM cost.
+
+This is an estimate from prompt sizes and assumed usage; the app does not count tokens yet. Prices are from public pages, Oct 2026.
+
+## Business model and market (proposed, to validate in pilots)
+
+| Plan | Price | Includes |
+|---|---|---|
+| Teacher Free | EGP 0 | 1 class room, up to 30 students, AI tutor and quizzes, basic struggling-student view |
+| Teacher Pro | EGP 199 / month | Unlimited class rooms, one-click lesson studio, video tools and exports |
+| School & Centre | EGP 25 / student / month | Dashboards across every class, weekly parent reports, LMS and WhatsApp integration (main revenue) |
+
+A month of Rafeeq per student costs less than one private group session (EGP 150–300). The beachhead is private learning centres and schools in Greater Cairo (about 2.2M of Egypt's 25.8M students are in private K-12 schools), then universities, training centres, online academies and corporate training. Growth path: teachers first through the free plan, then pilots with centres, then LMS/WhatsApp integrations and white-label versions.
+
+**On-premise option** (for privacy and contract needs, not savings):
+
+| Tier | Size | Estimated cost |
+|---|---|---|
+| Pilot | One school, up to ~300 students (RTX 5090, 32 GB) | $8–9k |
+| Mid | 1,000–3,000 students (RTX PRO 6000, 96 GB) | $22–28k |
+| Large | A whole school network | By quote |
+
+Hosted AI costs about $436/month for 1,000 students, so a $22–28k server takes roughly 50–65 months to pay back. Hardware figures are estimates from public GPU prices and were not load-tested; Arabic answer quality with open models must be re-measured before promising it.
+
 ## Run the tests
 
 ```bash
@@ -85,6 +269,10 @@ uv run pytest
 ```
 
 This also checks that every file in `contracts/samples/` matches the API contract in `contracts/openapi.yaml`.
+
+## Deployment
+
+Local development uses `uv sync` + `uvicorn`, or `docker compose` (app + Postgres). The same Docker image is deployed to Render with PostgreSQL + pgvector and the environment variables listed under [Configuration](#configuration).
 
 ## Project structure
 
@@ -104,7 +292,10 @@ contracts/
 ├── openapi.yaml        # every route, and the JSON shape it sends/receives
 └── samples/             # one real example per JSON file
 tests/                   # automated checks
-docs/knowledge/          # M2 evaluation reports (historical, written in the standalone project)
+docs/
+├── architecture.md      # feature workflows, architecture and deployment diagrams
+├── images/              # slides from the capstone presentation used in this README
+└── knowledge/           # M2 evaluation reports (historical, written in the standalone project)
 ```
 
 ## Contributing
