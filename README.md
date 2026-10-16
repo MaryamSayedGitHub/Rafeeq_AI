@@ -1,6 +1,7 @@
 # Rafeeq · رفيق
 
-![Rafeeq — an Arabic-first AI learning companion](docs/images/rafeeq-banner.png)
+<img width="2001" height="900" alt="rafeeq-banner" src="https://github.com/user-attachments/assets/a6eb651b-ff5f-4b3e-9d1c-e8763d80fe3f" />
+
 
 > **Every teacher sees. Every student understands.**
 
@@ -77,8 +78,8 @@ docker compose up --build
 ## How it is built
 
 One app, one router, specialised agents:
+<img width="2001" height="990" alt="rafeeq-architecture" src="https://github.com/user-attachments/assets/e92beba0-c3d4-454b-af20-389cf6dc65e7" />
 
-![Rafeeq architecture: people, web app, Copilot router, agents, knowledge, models](docs/images/rafeeq-architecture.png)
 
 The full set of diagrams (every feature workflow plus architecture and deployment) is in **[docs/architecture.md](docs/architecture.md)**.
 
