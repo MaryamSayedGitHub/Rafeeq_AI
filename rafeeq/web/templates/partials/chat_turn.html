@@ -19,7 +19,9 @@
         {% if p.verified_by_teacher %}
           <span class="badge badge-green">{{ icon('badge', 14) }}{{ t('answer.verified') }}</span>
         {% endif %}
-        {% if p.grounded == false %}
+        {% if p.off_topic %}
+          <div class="inline-note">{{ icon('info', 16) }}<span>{{ t('answer.off_topic') }}</span></div>
+        {% elif p.grounded == false %}
           {% if not p.escalated %}<div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('answer.not_grounded') }}</span></div>{% endif %}
           {% if p.escalated %}
             <div class="inline-note">{{ icon('send', 16, 'back') }}<span>{{ t('answer.escalated') }}</span></div>
@@ -33,7 +35,7 @@
           <ol class="step-list">{% for s in p.steps %}<li>{{ s }}</li>{% endfor %}</ol>
         {% endif %}
         {% if p.notice %}
-          <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ p.notice }}</span></div>
+          <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ student_reason(p.notice) or t('tutor.notice') }}</span></div>
         {% endif %}
         {% if p.web_sources %}
           <div class="inline-note">{{ icon('info', 16) }}<span>{{ t('tutor.web_answer') }}</span></div>

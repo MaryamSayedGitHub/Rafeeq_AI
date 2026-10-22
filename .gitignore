@@ -9,3 +9,4 @@ data/
 outputs/
 storage/
 *.db
+results/smoke_check.json

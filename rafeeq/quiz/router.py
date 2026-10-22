@@ -27,6 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from rafeeq.quiz import adapters
+from rafeeq.platform import access
 from rafeeq.quiz import api as m4_api
 from rafeeq.quiz.contracts import QuizCreateResponse
 from rafeeq.quiz.deps import current_user_id, get_approved_items, get_chunks, get_llm, get_room_chunks, get_verifier, material
@@ -67,6 +68,7 @@ def make_quiz(
     verifier=Depends(get_verifier),
     room_fn=Depends(get_room_chunks),
 ) -> dict:
+    access.member_by_id(user_id, body.room_id)   # the room's material and model credit: members only
     chunks = material(room_fn, body.room_id, chunks)
     topic_id = (body.topic_id or "").strip() or None
     try:
@@ -103,6 +105,7 @@ def make_printable_quiz(
 ):
     """Makes a NEW quiz in paper mode and returns its printable PDF (answer sheet + questions).
     The quiz id is in the X-Quiz-Id header; use it later with POST /quizzes/{id}/grade-sheet."""
+    access.member_by_id(user_id, body.room_id)   # the room's material and model credit: members only
     chunks = material(room_fn, body.room_id, chunks)
     topic_id = (body.topic_id or "").strip() or None
     try:
@@ -293,6 +296,7 @@ def next_step(
     chunks=Depends(get_chunks),
     room_fn=Depends(get_room_chunks),
 ) -> dict:
+    access.member_by_id(user_id, room_id)
     names = _topic_names(material(room_fn, room_id, chunks))
     profile = profile_service.get_profile(session, user_id, room_id, names)
     topic = adapters.pick_next_topic(profile)
@@ -307,8 +311,10 @@ def next_step(
 # ---------- POST /events ----------
 @router.post("/events", status_code=204)
 def record_question_event(
-    body: adapters.QuestionEvent, session: Session = Depends(get_session)
+    body: adapters.QuestionEvent, session: Session = Depends(get_session),
+    authorization: Optional[str] = Header(default=None),
 ) -> Response:
+    m4_api._own_event(authorization, body.user_id, body.room_id)
     event = adapters.question_event_to_event(body)
     if event is not None:
         profile_service.record_event(session, event)

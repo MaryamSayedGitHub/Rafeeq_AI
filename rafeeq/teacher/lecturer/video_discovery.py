@@ -66,7 +66,7 @@ def _to_vector_literal(vector: list[float]) -> str:
 # ---------------------------------------------------------------------------
 def _connect():
     import psycopg
-    return psycopg.connect(DATABASE_URL, autocommit=True)
+    return psycopg.connect(DATABASE_URL, autocommit=True, connect_timeout=5)  # Postgres down: fail fast, never stall the approval
 
 
 def setup_table() -> None:

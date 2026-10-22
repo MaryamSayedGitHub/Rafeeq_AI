@@ -90,11 +90,13 @@ def _facts_block(bp: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _blueprint(llm, topic: str, lang: str) -> dict:
+def _blueprint(llm, topic: str, lang: str, material: str = "") -> dict:
     """First pass: the subject knowledge (accurate facts, an analogy, a common mistake) before any scene is written.
-    Never fatal: when the model cannot answer, the scenes are planned without it."""
+    With the room's material, the facts come from it (the topic means what it means there). Never fatal."""
+    course = (f"Course material from the lecturer's files (the main source: take the facts from it, and read the topic in the "
+              f"meaning it has here):\n{material}\n") if material else ""
     prompt = (
-        f"You are an expert teacher. Topic: {topic}\n"
+        f"You are an expert teacher. Topic: {topic}\n" + course +
         f"Write the teaching notes for a short video, in {lang}. Be accurate and specific (names, numbers, steps), no filler.\n"
         'Answer with JSON only: {"objective": "what the student can do after the video", "facts": ["6 to 8 short, correct, '
         'concrete facts in teaching order"], "analogy": "...", "example": "...", "misconception": "..."}')
@@ -112,7 +114,8 @@ def _blueprint(llm, topic: str, lang: str) -> dict:
     return {"facts": facts, **{k: _clean(data.get(k), 220) for k in ("objective", "analogy", "example", "misconception")}}
 
 
-def plan_story(topic: str, scenes: int = DEFAULT_SCENES, language: str = "ar", style: str = "storybook", llm=None) -> dict:
+def plan_story(topic: str, scenes: int = DEFAULT_SCENES, language: str = "ar", style: str = "storybook", llm=None,
+               material: str = "") -> dict:
     """{'style','character','setting','scenes':[{'visual','narration'}]}. Raises StoryError."""
     topic = _clean(topic, 400)
     if len(topic) < 3:
@@ -124,7 +127,7 @@ def plan_story(topic: str, scenes: int = DEFAULT_SCENES, language: str = "ar", s
         from rafeeq.teacher.lecturer.llm import get_llm
         llm = get_llm(provider=os.getenv("STORY_LLM_PROVIDER") or None, temperature=0.6)
     lang = "Arabic" if language == "ar" else "English"
-    facts = _blueprint(llm, topic, lang)
+    facts = _blueprint(llm, topic, lang, material)
     prompt = (
         f"You are a teacher writing a short EXPLAINER video of exactly {scenes} scenes that teaches: {topic}\n"
         + (_facts_block(facts) if facts else "") +
@@ -355,7 +358,11 @@ def start_story(store, teacher_id: str, topic: str, *, scenes: int = DEFAULT_SCE
                                       settings={**existing["settings"], "story": prior})
     if existing and not (existing["status"] == "failed" and retry) and not asset_lib.is_stale_pending(existing, minutes=240):
         return existing
-    plan = plan_story(topic, scenes, language, style, llm=llm)
+    from rafeeq.teacher.lecturer.material import room_material      # a room's story explains the room's own material
+
+    material = room_material({"room_id": room_id, "topic": topic})
+    extra = {"material": material} if material else {}               # no room material: the same call as before
+    plan = plan_story(topic, scenes, language, style, llm=llm, **extra)
     story = {**plan, "seed": secrets.randbelow(2_000_000_000), "topic": _clean(topic, 400), "voice": voice, "fade": bool(fade), "vision": bool(vision),
              "scenes": [{**s, "state": "todo", "task_id": "", "clip": "", "frame": "", "note": ""} for s in plan["scenes"]]}
     settings = {"story": story, "duration": SCENE_SECONDS * len(story["scenes"])}

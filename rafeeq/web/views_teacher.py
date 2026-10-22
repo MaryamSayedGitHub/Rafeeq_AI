@@ -72,12 +72,13 @@ def _next_step(request: Request, room_id: str, files_res, insights_res, report_r
 async def overview_page(request: Request):
     user, room, rooms = await load_room(request, request.path_params["room_id"], "teacher")
     rid, tok = room["room_id"], user["token"]
-    files_res, students_res, insights_res, report_res, code_res, (topics_res, names) = await gather(
+    files_res, students_res, insights_res, report_res, code_res, settings_res, (topics_res, names) = await gather(
         api(request).get(f"/rooms/{rid}/files", token=tok),
         api(request).get(f"/rooms/{rid}/students", token=tok),
         api(request).get(f"/teacher/rooms/{rid}/insights", token=tok),
         api(request).get(f"/teacher/rooms/{rid}/report", token=tok),
         api(request).get(f"/rooms/{rid}/join-code", token=tok),
+        api(request).get(f"/rooms/{rid}/settings", token=tok),
         topic_names(request, user, rid),
     )
     ensure_session(request, files_res)
@@ -95,7 +96,21 @@ async def overview_page(request: Request):
                   join_code=join_code, created=request.query_params.get("created") == "1",
                   attention=_attention(request, rid, files_res, students_res, report_res, join_code),
                   next_step=_next_step(request, rid, files_res, insights_res, report_res, names),
-                  report_res=report_res, topic_names=names)
+                  report_res=report_res, topic_names=names, settings=settings_res.data if settings_res.ok else None)
+
+
+async def room_settings_save(request: Request):
+    """The teacher chooses whether the tutor may answer from the web in this room (rafeeq/tutor/scope.py)."""
+    user, room, _ = await load_room(request, request.path_params["room_id"], "teacher")
+    form = await check_csrf(request)
+    mode = str(form.get("web_answers", ""))
+    res = await api(request).put(f"/rooms/{room['room_id']}/settings", token=user["token"], json={"web_answers": mode})
+    ensure_session(request, res)
+    if res.ok:
+        flash(request, "success", tr(request, "settings.saved"))
+    else:
+        flash(request, "error", api_message(request, res))
+    return redirect(request, f"/rooms/{room['room_id']}/overview")
 
 
 # ---------------------------------------------------------------- students

@@ -22,6 +22,8 @@ from rafeeq.snap.service import SnapError
 from rafeeq.snap.vision_check import check_photo
 
 from . import anonymous, research, study_store
+from rafeeq.platform import access
+
 from .events import current_user_id
 from .tutor_agent import ACTIONS, act, ask_payload
 from .agent import run_qa
@@ -191,19 +193,30 @@ def _user(request: Request) -> str | None:
     return current_user_id(request.headers)
 
 
-def require_instructor(x_instructor_pin: str | None = Header(None)) -> None:
+def require_instructor(room_id: str, x_instructor_pin: str | None = Header(None), authorization: str | None = Header(None)) -> None:
+    """The room's teacher (M1 login). INSTRUCTOR_PIN, when set, is asked for on top of that."""
     pin = os.getenv("INSTRUCTOR_PIN")
     if pin and x_instructor_pin != pin:
         raise HTTPException(401, "Instructor PIN required (header X-Instructor-Pin).")
+    access.room_teacher(authorization, room_id)
 
 
-@router.post("/rooms/{room_id}/ask", response_model=AskResponse)
+def require_member(room_id: str, authorization: str | None = Header(None)) -> None:
+    """A logged-in member of the room: the tutor answers from the room's material and spends model credit."""
+    access.room_member(authorization, room_id)
+
+
+@router.post("/rooms/{room_id}/ask", response_model=AskResponse, dependencies=[Depends(require_member)])
 def ask(room_id: str, body: AskRequest, request: Request):
+    from .scope import web_allowed
+
+    if body.level == 2 and not web_allowed(room_id):                 # the teacher chose "material only": no web research here
+        body = body.model_copy(update={"level": 1})
     st = run_qa(room_id, body.question, body.level, _user(request), body.language, body.pages, body.topic_id, body.parent_question_id, with_quiz=body.quiz)
     return ask_payload(st, body.level)
 
 
-@router.post("/rooms/{room_id}/vision/check-work", response_model=VisionCheck)
+@router.post("/rooms/{room_id}/vision/check-work", response_model=VisionCheck, dependencies=[Depends(require_member)])
 async def vision_check(room_id: str, request: Request, photo: UploadFile = File(...), language: Literal["ar", "en"] = Form("ar"),
                        annotate: bool = Form(False)):
     data = await photo.read()
@@ -215,7 +228,7 @@ async def vision_check(room_id: str, request: Request, photo: UploadFile = File(
         raise HTTPException(503 if "reader" in str(e) else 400, str(e))
 
 
-@router.get("/rooms/{room_id}/questions", response_model=list[LoggedQuestion])
+@router.get("/rooms/{room_id}/questions", response_model=list[LoggedQuestion], dependencies=[Depends(require_member)])
 def my_questions(room_id: str, request: Request, limit: int = Query(50, ge=1, le=500)):
     user = _user(request)
     if not user:
@@ -237,7 +250,7 @@ def instructor_publish(room_id: str):
     return anonymous.publish(room_id)
 
 
-@router.post("/rooms/{room_id}/tutor/act", response_model=TutorActResponse)
+@router.post("/rooms/{room_id}/tutor/act", response_model=TutorActResponse, dependencies=[Depends(require_member)])
 def tutor_act(room_id: str, body: TutorActRequest, request: Request):
     """The tutor agent behind M1's Copilot: one entry for Ask (Level 1 / 2), quiz, summary, flashcards, study files, rewrite, hints and handwriting."""
     p = body.model_dump(exclude={"action", "text", "language"}, exclude_none=True)

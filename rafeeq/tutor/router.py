@@ -1,8 +1,10 @@
 """M3 tutor routes. The shapes are the agreed ones in contracts/openapi.yaml (TutorRequest, TutorAnswer, CheckWorkRequest, HandwritingCheck)."""
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Request
+from fastapi import APIRouter, BackgroundTasks, Header, Request
 from pydantic import BaseModel, ConfigDict, Field
+
+from rafeeq.platform import access
 
 from .answer import tutor_answer
 from .check_work import check_work
@@ -58,7 +60,8 @@ class HandwritingCheck(_Strict):
 
 
 @router.post("/tutor/answer", response_model=TutorAnswer)
-def answer(body: TutorRequest, request: Request, background: BackgroundTasks):
+def answer(body: TutorRequest, request: Request, background: BackgroundTasks, authorization: str | None = Header(None)):
+    access.room_member(authorization, body.room_id)
     res = tutor_answer(body.room_id, body.question, body.language)
     topic = res["chunks"][0].get("topic_id") if res["chunks"] else None
     background.add_task(send_question_event, current_user_id(request.headers), body.room_id, topic, body.question)
@@ -66,5 +69,6 @@ def answer(body: TutorRequest, request: Request, background: BackgroundTasks):
 
 
 @router.post("/tutor/check-work", response_model=HandwritingCheck)
-def check(body: CheckWorkRequest):
+def check(body: CheckWorkRequest, authorization: str | None = Header(None)):
+    access.room_member(authorization, body.room_id)
     return check_work(body.room_id, body.file_id, body.text)

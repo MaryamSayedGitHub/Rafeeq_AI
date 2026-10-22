@@ -56,6 +56,11 @@ _CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no 0/O/1/I, easy to read 
 _PBKDF2_ROUNDS = 120_000
 TOKEN_DAYS = 30  # a login lasts a month; the demo accounts' fixed tokens never expire
 DEMO_PASSWORD = "rafeeq-demo"
+
+
+def demo_accounts_on() -> bool:
+    """RAFEEQ_DEMO_ACCOUNTS=0 on a real server: the demo logins stop working, also those already saved."""
+    return os.environ.get("RAFEEQ_DEMO_ACCOUNTS", "1") != "0"
 DEMO_ACCOUNTS = [
     # user_id, name, email, role, fixed token (keeps the old DEMO_USER token working)
     ("u_sara", "سارة أحمد", "sara@rafeeq.demo", "student", "demo-token-sara-123"),
@@ -204,6 +209,8 @@ class PlatformStore:
 
     def login(self, email: str, password: str) -> dict:
         user = self._user_by_email(email or "")
+        if user is not None and user.get("demo") and not demo_accounts_on():
+            user = None
         if user is None or not secrets.compare_digest(user["password_hash"], _hash_password(password or "", user["salt"])):
             raise AuthError("Wrong email or password")
         with self._lock:
@@ -218,7 +225,10 @@ class PlatformStore:
         issued = self.db["token_times"].get(token or "")
         if user_id and issued and issued < (_now() - timedelta(days=TOKEN_DAYS)).isoformat():
             return None  # expired: log in again (tokens without a time are the demo accounts' fixed ones)
-        return self.db["users"].get(user_id) if user_id else None
+        user = self.db["users"].get(user_id) if user_id else None
+        if user and user.get("demo") and not demo_accounts_on():
+            return None  # the demo accounts' passwords and tokens are public (they are in the repo): off on a real server
+        return user
 
     # -- rooms
     def _room_by_code(self, code: str) -> dict | None:
@@ -279,6 +289,24 @@ class PlatformStore:
             room["name"] = name[:100]
             self._save()
             return self._room_payload(room)
+
+    # -- room settings (the teacher's choices for the tutor in this room)
+    WEB_MODES = ("material_then_web", "material_only")
+
+    def room_settings(self, user: dict, room_id: str) -> dict:
+        room = self.room_for(user, room_id)
+        mode = room.get("web_answers")
+        return {"room_id": room_id, "web_answers": mode if mode in self.WEB_MODES else "material_then_web"}
+
+    def set_room_settings(self, user: dict, room_id: str, web_answers: str) -> dict:
+        """Only the room's teacher. web_answers: material_then_web (default) | material_only (see rafeeq/tutor/scope.py)."""
+        room = self._owned_room(user, room_id)
+        if web_answers not in self.WEB_MODES:
+            raise Invalid(f"web_answers must be one of {', '.join(self.WEB_MODES)}")
+        with self._lock:
+            room["web_answers"] = web_answers
+            self._save()
+        return {"room_id": room_id, "web_answers": web_answers}
 
     def join_room(self, user: dict, code: str) -> dict:
         if user["role"] != "student":
@@ -418,7 +446,7 @@ def get_store() -> PlatformStore:
     with _store_lock:
         if _store is None:
             data_dir = Path(os.environ.get("RAFEEQ_DATA_DIR", "storage")) / "platform"
-            _store = PlatformStore(data_dir, seed_demo=os.environ.get("RAFEEQ_DEMO_ACCOUNTS", "1") != "0")
+            _store = PlatformStore(data_dir, seed_demo=demo_accounts_on())
         return _store
 
 

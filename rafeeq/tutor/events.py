@@ -16,10 +16,16 @@ DEMO_TOKENS = {"demo-token-sara-123": "u_sara"}
 
 
 def current_user_id(headers) -> str | None:
-    if headers.get("x-user-id"):
+    """The logged-in student (M1 Bearer token). The X-User-Id header and the demo token are trusted ONLY in
+    development mode (RAFEEQ_ALLOW_ANONYMOUS=1): anyone can write a header, so on a real server they would let
+    one student act as another."""
+    from rafeeq.platform.access import anonymous_allowed
+
+    dev = anonymous_allowed()
+    if dev and headers.get("x-user-id"):
         return headers["x-user-id"]
     token = (headers.get("authorization") or "").removeprefix("Bearer ").strip()
-    if token in DEMO_TOKENS:
+    if dev and token in DEMO_TOKENS:
         return DEMO_TOKENS[token]
     try:                                                           # a real M1 login token
         from rafeeq.platform import service

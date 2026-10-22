@@ -70,6 +70,10 @@ def ask_node(s: State) -> dict:
                 "kind": "question", "text": s["text"], "time": datetime.now(timezone.utc).isoformat(),
             })
 
+    if answer.get("off_topic"):
+        # another subject altogether: the tutor already asked the student to keep to the course; nothing for the teacher
+        return {"reply": answer.get("answer", ""), "payload": _mark({**answer, "escalated": False}, source)}
+
     if not answer.get("grounded", True):
         ticket = clients.optional("escalate", s["room_id"], s["text"], s.get("user_id"))
         payload = {**answer, "escalated": bool(ticket)}

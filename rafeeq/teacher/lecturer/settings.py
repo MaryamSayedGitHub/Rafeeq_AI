@@ -11,16 +11,17 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 load_dotenv(REPO_ROOT / ".env")
 
 # Generated session files (.pptx, code, quiz). Ignored by git.
-OUTPUT_DIR = Path(os.getenv("TEACHER_OUTPUT_DIR", REPO_ROOT / "outputs" / "teacher")).resolve()
+# "or": an empty TEACHER_OUTPUT_DIR= in .env must not mean "the current folder" (sessions landed in the repo root)
+OUTPUT_DIR = Path(os.getenv("TEACHER_OUTPUT_DIR") or REPO_ROOT / "outputs" / "teacher").resolve()
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # A teacher's saved character image (Lab 5): used as the default first frame for
 # image-to-video generation so their videos keep the same "presenter" each time.
-AVATAR_DIR = Path(os.getenv("TEACHER_AVATAR_DIR", REPO_ROOT / "outputs" / "avatars")).resolve()
+AVATAR_DIR = Path(os.getenv("TEACHER_AVATAR_DIR") or REPO_ROOT / "outputs" / "avatars").resolve()
 AVATAR_DIR.mkdir(parents=True, exist_ok=True)
 
 # Teacher library (assets): saved/generated videos, images, edited files. Ignored by git.
-ASSET_DIR = Path(os.getenv("TEACHER_ASSET_DIR", REPO_ROOT / "outputs" / "assets")).resolve()
+ASSET_DIR = Path(os.getenv("TEACHER_ASSET_DIR") or REPO_ROOT / "outputs" / "assets").resolve()
 ASSET_DIR.mkdir(parents=True, exist_ok=True)
 
 # LLM

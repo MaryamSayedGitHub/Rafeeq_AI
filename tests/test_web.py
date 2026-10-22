@@ -622,3 +622,34 @@ def test_teacher_answers_an_escalated_question_and_the_student_sees_the_reply(en
     found = inbox.find_verified(room_id, "ايه الفرق بين TWT و Klystron؟", store=double.class_store)
     assert found and found["answer"].startswith("الـ TWT")
     assert not double.violations
+
+
+def test_the_teacher_chooses_whether_the_tutor_may_answer_from_the_web(env):
+    app, double = env
+    t, room_id, _ = teacher_with_room(app)
+    page = t.get(f"/app/rooms/{room_id}/overview")
+    assert "المادة أولاً، ثم الويب" in page.text and 'value="material_then_web" checked' in page.text
+    r = t.post(f"/app/rooms/{room_id}/settings", data={"csrf_token": csrf_of(page.text), "web_answers": "material_only"})
+    assert r.status_code == 200 and 'value="material_only" checked' in r.text
+    assert double.settings[room_id] == "material_only" and double.violations == []
+
+
+
+def test_a_web_answer_waits_in_the_inbox_and_the_teacher_can_approve_it(env):
+    from rafeeq.teacher import inbox
+
+    app, double = env
+    t, room_id, code = teacher_with_room(app)
+    s, _ = student_in_room(app, code)
+    omar = next(uid for uid, u in service.get_store().db["users"].items() if u["name"] == "Omar")
+    kept = inbox.log_web_answer(room_id, "ما هو الـ magnetron؟", omar,
+                                {"answer": "الماجنترون مذبذب ميكروويف [1]", "web_sources": [{"n": 1, "title": "Magnetron", "url": "https://example.org/m"}]},
+                                store=double.class_store)
+    page = t.get(f"/app/rooms/{room_id}/inbox")
+    assert "أُجيب من الويب" in page.text and "الماجنترون مذبذب ميكروويف" in page.text and "اعتماد الإجابة" in page.text
+    assert inbox.find_verified(room_id, "ما هو الـ magnetron؟", store=double.class_store) is None     # not reused before the teacher approves
+    assert "ما هو الـ magnetron؟" not in s.get(f"/app/rooms/{room_id}/study").text                    # the student already got the web answer
+    t.post(f"/app/rooms/{room_id}/inbox/{kept['question_id']}/answer",
+           data={"csrf_token": csrf_of(page.text), "answer": "الماجنترون مذبذب ميكروويف [1]"})
+    assert inbox.find_verified(room_id, "ما هو الـ magnetron؟", store=double.class_store)["answer"].startswith("الماجنترون")
+    assert not double.violations
