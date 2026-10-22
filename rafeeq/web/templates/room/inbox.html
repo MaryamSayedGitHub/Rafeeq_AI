@@ -16,25 +16,31 @@
   {% else %}
     <ul class="inbox-list">
       {% for q in inbox_res.data.questions %}
-      <li class="inbox-item {{ 'is-open' if q.status == 'open' else 'is-answered' }}">
+      <li class="inbox-item {{ 'is-answered' if q.status == 'answered' else 'is-open' }}">
         <div class="inbox-head">
           <span class="person"><span class="mini-avatar">{{ (q.student_name or '?')[:1] }}</span>{{ q.student_name or t('parent.student') }}</span>
-          <span class="badge {{ 'badge-amber' if q.status == 'open' else 'badge-green' }}">{{ t('inbox.status.' ~ q.status) }}</span>
+          <span class="badge {{ 'badge-green' if q.status == 'answered' else ('badge-blue' if q.status == 'web' else 'badge-amber') }}">{{ t('inbox.status.' ~ q.status) }}</span>
         </div>
         <p class="inbox-question" dir="auto">{{ q.text }}</p>
-        {% if q.status == 'open' %}
+        {% if q.status == 'web' %}
+        <div class="inline-note">{{ icon('info', 16) }}<span>{{ t('inbox.web_note') }}</span></div>
+        <div class="inbox-answer"><strong>{{ t('inbox.web_answer') }}</strong><p dir="auto">{{ q.web_answer }}</p>
+          {% if q.web_sources %}<div class="sources">{% for src in q.web_sources %}<a class="source-chip" href="{{ src.url }}" target="_blank" rel="noopener noreferrer">{{ icon('file', 14) }}<span dir="auto">{{ src.title or src.url }}</span></a>{% endfor %}</div>{% endif %}
+        </div>
+        {% endif %}
+        {% if q.status in ('open', 'web') %}
         <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/inbox/' ~ q.question_id ~ '/answer') }}" class="inbox-form">
           <input type="hidden" name="csrf_token" value="{{ csrf }}">
           <label class="sr-only" for="a-{{ q.question_id }}">{{ t('inbox.your_answer') }}</label>
           <textarea id="a-{{ q.question_id }}" name="answer" rows="3" required maxlength="4000" dir="auto"
-                    placeholder="{{ t('inbox.your_answer') }}"></textarea>
+                    placeholder="{{ t('inbox.your_answer') }}">{{ q.web_answer if q.status == 'web' else '' }}</textarea>
           <div class="btn-row">
             <button type="button" class="btn btn-light btn-sm"
                     hx-post="{{ u('/rooms/' ~ room.room_id ~ '/inbox/' ~ q.question_id ~ '/draft') }}"
                     hx-target="#a-{{ q.question_id }}" hx-swap="outerHTML" hx-indicator="#d-{{ q.question_id }}">
               {{ icon('sparkle', 14) }}<span>{{ t('inbox.draft') }}</span></button>
             <span class="htmx-indicator muted" id="d-{{ q.question_id }}"><span class="spinner"></span>{{ t('inbox.drafting') }}</span>
-            <button type="submit" class="btn btn-primary btn-sm">{{ icon('send', 14, 'back') }}<span>{{ t('inbox.send') }}</span></button>
+            <button type="submit" class="btn btn-primary btn-sm">{{ icon('send', 14, 'back') }}<span>{{ t('inbox.confirm') if q.status == 'web' else t('inbox.send') }}</span></button>
           </div>
         </form>
         {% else %}

@@ -90,7 +90,11 @@ def teacher_for(authorization: str | None, claimed_id: str = "") -> str:
     videos or sessions through /app.
     """
     if not authorization:
-        return claimed_id
+        from rafeeq.platform.access import anonymous_allowed
+
+        if anonymous_allowed():          # development mode only: the old cookie pages and sample tests
+            return claimed_id
+        raise HTTPException(401, "Log in first")
     from rafeeq.platform import service as platform
 
     token = platform.token_from_header(authorization)
@@ -128,11 +132,23 @@ def _past_sessions(svc: TeacherService, teacher_id: str) -> list[dict]:
     ]
 
 
+def _model_failed(e: Exception) -> HTTPException:
+    """A provider error (unknown model, bad key, rate limit, network) is a 502 with the reason, never a bare 500."""
+    log.exception("lecturer assistant: the model call failed")
+    detail = f"{type(e).__name__}: {str(e)[:300]}"
+    hint = " Check LLM_PROVIDER and its model in .env (e.g. GROQ_MODEL)." if "model" in detail.lower() else ""
+    return HTTPException(502, f"The lecturer assistant's model call failed: {detail}.{hint}")
+
+
 def _start(svc: TeacherService, req: SessionRequest) -> dict:
     try:
         return svc.controller.start(req.model_dump())
     except AssistantNotConfigured as e:
         raise HTTPException(503, f"The lecturer assistant has no LLM configured: {e}") from None
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise _model_failed(e) from None
 
 
 def _decide(svc: TeacherService, session_id: str, decision: Decision) -> dict:
@@ -146,6 +162,10 @@ def _decide(svc: TeacherService, session_id: str, decision: Decision) -> dict:
         raise HTTPException(409, f"The draft was already revised {MAX_REVISIONS} times. Approve it or start a new session.") from None
     except AssistantNotConfigured as e:
         raise HTTPException(503, str(e)) from None
+    except HTTPException:
+        raise
+    except Exception as e:  # noqa: BLE001
+        raise _model_failed(e) from None
 
 
 def _get(svc: TeacherService, session_id: str) -> dict:
@@ -411,23 +431,55 @@ def get_asset_file_api(svc: Service, asset_id: str, authorization: Auth = None):
 
 @router.post("/teacher/sessions")
 def start_session_api(svc: Service, body: SessionRequest, authorization: Auth = None):
-    if authorization:
-        body.lecturer_id = teacher_for(authorization, body.lecturer_id)
+    body.lecturer_id = teacher_for(authorization, body.lecturer_id)   # no login: 401 (development mode: as named)
     return _start(svc, body)
 
 
+def _session_owner(svc: TeacherService, session_id: str) -> str | None:
+    """lecturer_id of a session: from the graph, else from a finished session kept in the store."""
+    try:
+        brief = svc.controller.graph.get_state({"configurable": {"thread_id": session_id}}).values.get("brief", {})
+        if brief.get("lecturer_id"):
+            return brief["lecturer_id"]
+    except Exception:  # noqa: BLE001
+        pass
+    for teacher_ns in svc.store.list_namespaces(prefix=("lecturer",), max_depth=2):
+        for item in svc.store.search((*teacher_ns, "sessions"), limit=200):
+            if item.key == session_id:
+                return teacher_ns[1]
+    return None
+
+
+def _check_session_owner(svc: TeacherService, session_id: str, authorization: str | None) -> None:
+    """A teacher reads, approves and downloads only their own sessions (development mode without a login: unchecked)."""
+    from rafeeq.platform.access import anonymous_allowed
+    from rafeeq.teacher.lecturer.long_term_store import lecturer_key
+
+    if not authorization and anonymous_allowed():
+        return
+    teacher_id = teacher_for(authorization)
+    owner = _session_owner(svc, session_id)
+    if owner is None:
+        raise HTTPException(404, "Session not found")
+    if owner not in (teacher_id, lecturer_key(teacher_id)):
+        raise HTTPException(403, "This session belongs to another teacher")
+
+
 @router.get("/teacher/sessions/{session_id}")
-def get_session_api(svc: Service, session_id: str):
+def get_session_api(svc: Service, session_id: str, authorization: Auth = None):
+    _check_session_owner(svc, session_id, authorization)
     return _get(svc, session_id)
 
 
 @router.post("/teacher/sessions/{session_id}/decision")
-def decide_api(svc: Service, session_id: str, body: Decision):
+def decide_api(svc: Service, session_id: str, body: Decision, authorization: Auth = None):
+    _check_session_owner(svc, session_id, authorization)
     return _decide(svc, session_id, body)
 
 
 @router.get("/teacher/sessions/{session_id}/files/{name}")
-def download(svc: Service, session_id: str, name: str):
+def download(svc: Service, session_id: str, name: str, authorization: Auth = None):
+    _check_session_owner(svc, session_id, authorization)
     # Only names the session itself recorded can be downloaded (no path tricks).
     folder, files = _session_files(svc, session_id)
     if name not in files:
@@ -452,14 +504,20 @@ def _session_files(svc: TeacherService, session_id: str) -> tuple[str, list[str]
 
 
 @router.get("/teacher/rooms/{room_id}/insights")
-def insights(svc: Service, room_id: str):
+def insights(svc: Service, room_id: str, authorization: Auth = None):
     """Real data: the room's student questions grouped by topic + repeated quiz mistakes (class_report.py)."""
+    from rafeeq.platform.access import room_teacher
+
+    room_teacher(authorization, room_id)
     return class_report.build_insights(svc.store, room_id)
 
 
 @router.get("/teacher/rooms/{room_id}/report")
-def report(svc: Service, room_id: str):
+def report(svc: Service, room_id: str, authorization: Auth = None):
     """Real data: class mastery per topic and students at risk, from recorded quiz results (class_report.py)."""
+    from rafeeq.platform.access import room_teacher
+
+    room_teacher(authorization, room_id)
     return class_report.build_report(svc.store, room_id)
 
 

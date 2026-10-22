@@ -134,6 +134,8 @@ def n_search(s: State) -> State:
         res = web_search.multi_search(s["queries"], top=top, per_query=max(5, top))
     except Exception as e:                                         # noqa: BLE001  SearchError or a network error: both end in the retry / fallback below
         msg = e.message(s.get("language") or "en") if isinstance(e, safety.Blocked) else (str(e) or type(e).__name__)        # an illegal / 18+ search is refused in the student's language
+        if not isinstance(e, safety.Blocked):
+            log.warning("web search failed: %s", msg[:200])                # the page shows the student a plain sentence; the reason is here
         return {**base, "sources": [], "search_stats": {"cache_hits": 0, "api_calls": 0, "errors": [msg]}, "error": msg}
     stats = {k: res[k] for k in ("cache_hits", "api_calls", "errors")}
     if not res["sources"]:

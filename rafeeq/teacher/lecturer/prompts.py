@@ -53,8 +53,16 @@ Feedback on the previous draft: {feedback}
 ])
 
 
+# Every content agent follows the lecturer's own course material when the session is linked to a room.
+_MATERIAL_RULE = (
+    "If course material is given (not \"None\"), it is the main source: take the content, the terms and the "
+    "examples from it, and read the topic in the meaning the material gives it (an acronym or a short name means "
+    "what it means in the material, never a different everyday meaning). Do not add facts the material contradicts."
+)
+
+
 # ---------------------------------------------------------------- RESEARCH
-# variables: topic, level, duration, objectives, search_results
+# variables: topic, level, duration, objectives, material, search_results
 RESEARCH_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """\
 You are an experienced curriculum designer. Build the outline of one teaching session.
@@ -64,6 +72,7 @@ Rules:
 - Order the sections pedagogically: start with motivation or prerequisites, build up step by step, and finish with practice or a summary.
 - Match the student level: {level}. Do not assume knowledge a student at this level would not have.
 - Cover every learning objective the lecturer listed.
+- """ + _MATERIAL_RULE + """
 - Use the search results only to make the content accurate and current. Do not invent facts that are not supported by them or by well-established knowledge.
 - Each section title is short and specific. No numbering inside the titles.
 """),
@@ -73,6 +82,9 @@ Student level: {level}
 Duration (minutes): {duration}
 Learning objectives: {objectives}
 
+Course material (from the files the lecturer uploaded to this course):
+{material}
+
 Search results:
 {search_results}
 """),
@@ -80,7 +92,7 @@ Search results:
 
 
 # ------------------------------------------------------------------ SLIDES
-# variables: topic, outline, level, num_slides, language, notes, memory_context, feedback
+# variables: topic, outline, material, level, num_slides, language, notes, memory_context, feedback
 SLIDES_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """\
 You are an expert at turning a lecture outline into clear presentation slides.
@@ -95,12 +107,16 @@ Rules:
 - Make the slides visual: give about half of them a diagram (diagram_steps) that shows a process, a sequence of events, or how one thing leads to another. The diagram must add to the bullets, not repeat them word for word. The first and the last slide have no diagram.
 - Write bullets that say something concrete: a fact, an example, or a consequence. Avoid vague bullets such as "Introduction to the topic".
 - Respect the lecturer's notes, preferences and feedback below when they are not "None".
+- """ + _MATERIAL_RULE + """
 - """ + _LANGUAGE_RULE + """
 """),
     ("human", """\
 Topic: {topic}
 Outline:
 {outline}
+
+Course material:
+{material}
 
 Lecturer notes: {notes}
 Lecturer preferences from memory: {memory_context}
@@ -110,7 +126,7 @@ Feedback on the previous draft: {feedback}
 
 
 # -------------------------------------------------------------------- CODE
-# variables: topic, outline, level, programming_language, num_examples, language, feedback
+# variables: topic, outline, material, level, programming_language, num_examples, language, feedback
 CODE_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """\
 You are a teaching assistant who writes code examples for a lecture.
@@ -123,12 +139,16 @@ Rules:
 - Use clear English names for variables and functions. Comments and the explanation follow the language rule below.
 - The explanation walks through the code step by step and states what it prints.
 - Apply the feedback below when it is not "None".
+- """ + _MATERIAL_RULE + """
 - """ + _LANGUAGE_RULE + """
 """),
     ("human", """\
 Topic: {topic}
 Outline:
 {outline}
+
+Course material:
+{material}
 
 Feedback on the previous draft: {feedback}
 """),
@@ -157,7 +177,7 @@ Error:
 """),
 ])
 # -------------------------------------------------------------------- QUIZ
-# variables: topic, outline, level, num_questions, language, feedback
+# variables: topic, outline, material, level, num_questions, language, feedback
 QUIZ_PROMPT = ChatPromptTemplate.from_messages([
     ("system", """\
 You are an assessment designer who writes multiple-choice quiz questions for a lecture.
@@ -174,12 +194,16 @@ Rules:
 - Apply the feedback below when it is not "None".
 - Make all four options similar in length and level of detail. The correct option must not be the longest or the most detailed one.
 - Keep options short. If a question is about code, put the code snippet in the question text and keep the options as short statements.
+- """ + _MATERIAL_RULE + """ Every question must be answerable from the course material when it is given.
 - """ + _LANGUAGE_RULE + """
 """),
     ("human", """\
 Topic: {topic}
 Outline:
 {outline}
+
+Course material:
+{material}
 
 Feedback on the previous draft: {feedback}
 """),

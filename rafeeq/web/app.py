@@ -71,6 +71,7 @@ def _routes() -> list:
         R(room + "/source", student.source_page, methods=["GET"]),
         # teacher
         R(room + "/overview", teacher.overview_page, methods=["GET"]),
+        R(room + "/settings", teacher.room_settings_save, methods=["POST"]),
         R(room + "/students", teacher.students_page, methods=["GET"]),
         R(room + "/students/draft", teacher.students_draft, methods=["POST"]),
         R(room + "/students/{user_id}/report", teacher.parent_report_page, methods=["GET"]),

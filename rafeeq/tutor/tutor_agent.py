@@ -23,7 +23,7 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from . import extras, lookup, memory, quiz, safety, study_store
+from . import extras, lookup, memory, quiz, safety, scope, study_store
 from . import help as tutor_help
 from .agent import run_check, run_qa
 from .answer import _DETAIL, guess_language, keeps_english_terms
@@ -80,6 +80,13 @@ def _web_term(s: "TState", out: dict, photo: bool) -> bool:
     if not photo and lookup.is_course_specific(s["text"]):          # only the teacher knows: no web answer, the Copilot files it in the teacher's inbox (grounded=False)
         out.update(answer="", grounded=False, offer_level2=False, web_sources=[], material_source="none", needs_teacher=True)
         return False
+    if not scope.web_allowed(s["room_id"]):                          # the teacher chose "material only": the question goes to the teacher
+        out.update(answer="", grounded=False, offer_level2=False, web_sources=[], material_source="none", needs_teacher=True, web_off=True)
+        return False
+    if not photo and not scope.in_subject(s["room_id"], s["text"]):  # another subject altogether: no search, no teacher, back to the course
+        out.update(answer=scope.off_topic_reply(s["room_id"], out["language"]), grounded=False, offer_level2=False, web_sources=[],
+                   citations=[], steps=[], material_source="none", off_topic=True)
+        return False
     term = lookup.term_of(s["text"], photo)
     term = re.sub(r"\s+", " ", _DETAIL.sub(" ", term)).strip() if term else term                  # "in detail" asks for a longer answer, it is not part of what is searched
     query = term or ("" if photo else re.sub(r"\s+", " ", _DETAIL.sub(" ", s["text"])).strip()[:150])
@@ -96,6 +103,11 @@ def _web_term(s: "TState", out: dict, photo: bool) -> bool:
     out.update(answer=lead + "\n\n" + found["answer"], grounded=True, citations=[], steps=[], web_sources=found["web_sources"], material_source="web",
                offer_level2=True, citation_support="none", answer_flagged=False, error=None)
     study_store.update_question(out["question_id"], grounded=True, engine="web", level=2)
+    try:                                                            # the teacher sees what the files did not cover, and can confirm or replace the answer
+        from rafeeq.copilot import clients
+        clients.optional("log_web_answer", s["room_id"], s["text"], s.get("user_id"), {"answer": out["answer"], "web_sources": out["web_sources"]})
+    except Exception as e:                                          # noqa: BLE001  never breaks the answer
+        log.warning("could not log the web answer for the teacher: %s", type(e).__name__)
     return True
 
 
@@ -120,6 +132,12 @@ def n_route(s: TState) -> TState:
 def n_ask(s: TState) -> TState:
     p = s.get("params", {})
     level = 2 if s["route"] == "research" else 1
+    if level == 2 and not scope.web_allowed(s["room_id"]):          # "material only" room: no web research, the material answers (Level 1)
+        level = 1
+        p = {**p, "lookup": False}
+        web_off = True
+    else:
+        web_off = False
     st = run_qa(s["room_id"], s["text"], level, s.get("user_id"), s.get("language") if level == 2 else None, p.get("pages") if level == 2 else None,
                 p.get("topic_id"), p.get("parent_question_id"), notify=p.get("notify", True), with_quiz=bool(p.get("with_quiz")),
                 check_related=level == 1)       # M2 always returns its nearest passages: they must really be about the question
@@ -131,6 +149,10 @@ def n_ask(s: TState) -> TState:
         out.update(answer="", citations=[], steps=[], grounded=False, offer_level2=False, web_sources=[], material_source="none", needs_teacher=True)
     elif level == 1 and not out["grounded"] and p.get("lookup", True):
         _web_term(s, out, photo=False)
+    if not scope.web_allowed(s["room_id"]):
+        out["offer_level2"] = False                                  # no "go deeper on the web" button in a material-only room
+    if web_off:
+        out["error"] = scope.WEB_OFF.get(out.get("language") or "ar", scope.WEB_OFF["ar"])
     return {"result": out, "error": None if (out["grounded"] or level == 1) else (out["error"] or "no study file")}
 
 
@@ -150,6 +172,9 @@ def n_explain_web(s: TState) -> TState:
     """M2 had nothing: search the web NOW (no button) and answer from what it found, with the sources, and keep it as a study file."""
     p = s.get("params", {})
     first = s["result"]
+    if not scope.web_allowed(s["room_id"]):                          # "material only" room: say so instead of searching
+        msg = scope.WEB_OFF.get(s.get("language") or "ar", scope.WEB_OFF["ar"])
+        return {"result": {**first, "error": msg}, "error": msg}
     st = run_qa(s["room_id"], s["text"], 2, s.get("user_id"), s.get("language"), p.get("pages") or 1, None, first["question_id"], notify=False)   # the file: site language
     out = ask_payload(st, 2)
     if out["study_file"]:

@@ -104,7 +104,7 @@ def tutor_answer(room_id: str, question: str, user_id: str | None = None) -> dic
     return {"answer": r["answer"], "citations": r["citations"], "grounded": r["grounded"], "steps": r["steps"], "topic_id": r["topic_id"],
             "question_id": r["question_id"], "offer_level2": r["offer_level2"], "quiz": r["quiz"], "citation_support": r["citation_support"],
             "answer_flagged": r["answer_flagged"], "material_source": r["material_source"], "language": r["language"], "web_sources": r["web_sources"],
-            "notice": r.get("error") or ""}
+            "notice": r.get("error") or "", "off_topic": bool(r.get("off_topic"))}
 
 
 def record_event(event: dict) -> None:

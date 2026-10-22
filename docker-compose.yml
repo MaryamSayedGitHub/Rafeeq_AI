@@ -18,7 +18,18 @@ services:
         required: false
     environment:
       DATABASE_URL: postgresql://rafeeq:rafeeq@db:5432/rafeeq
+      M4_DATABASE_URL: sqlite:////app/storage/m4.db   # quiz history and mastery, inside the persisted storage volume
+    volumes:
+      # accounts, rooms, files, the search index, M3 study data and generated lessons survive a rebuild
+      - appstorage:/app/storage
+      - appdata:/app/data
+      - appoutputs:/app/outputs
+      - hfcache:/root/.cache/huggingface      # the embedder is downloaded once, not on every new container
     depends_on:
       - db
 volumes:
   dbdata:
+  appstorage:
+  appdata:
+  appoutputs:
+  hfcache:

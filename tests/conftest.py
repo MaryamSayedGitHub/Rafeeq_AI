@@ -14,6 +14,7 @@ for _name, _value in {
     "RAFEEQ_KNOWLEDGE_TUTOR": "0",      # the Copilot uses the contract samples
     "RAFEEQ_KNOWLEDGE_ROOM_TOPICS": "0",
     "RAFEEQ_ALLOW_SAMPLES": "1",
+    "RAFEEQ_ALLOW_ANONYMOUS": "1",      # the teammates' tests call routes without a login (X-User-Id, samples); tests/test_access.py checks the real rule
     "LLM_API_KEY": "",                  # no router / vision calls to a real model
     "TAVILY_API_KEY": "",               # no web search credits spent by the tests
     "TUTOR_SAMPLE_FALLBACK": "1",       # the tutor's tests use the contract samples as material (in the app they are off)

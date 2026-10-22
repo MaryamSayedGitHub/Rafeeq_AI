@@ -84,6 +84,22 @@
       {{ copy_code(t, join_code) }}
     </section>
     {% endif %}
+    {% if settings %}
+    <section class="panel panel-pad" aria-labelledby="web-setting-title">
+      <h2 class="panel-title" id="web-setting-title">{{ icon('settings', 18) }} {{ t('settings.web.title') }}</h2>
+      <p class="muted small">{{ t('settings.web.help') }}</p>
+      <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/settings') }}" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        {% for mode in ('material_then_web', 'material_only') %}
+        <label class="choice">
+          <input type="radio" name="web_answers" value="{{ mode }}" {{ 'checked' if settings.web_answers == mode }}>
+          <span><strong>{{ t('settings.web.' ~ mode) }}</strong><br><small class="muted">{{ t('settings.web.' ~ mode ~ '.help') }}</small></span>
+        </label>
+        {% endfor %}
+        <button type="submit" class="btn btn-secondary btn-sm">{{ t('settings.save') }}</button>
+      </form>
+    </section>
+    {% endif %}
   </aside>
 </div>
 

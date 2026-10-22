@@ -28,7 +28,7 @@ WEAK_SHARE = 0.6
 MAX_CHARS_IN_PROMPT = 3000
 
 
-def build_prompt(chunk: dict, problems: Optional[list[str]] = None) -> str:
+def build_prompt(chunk: dict, problems: Optional[list[str]] = None, avoid: Optional[list[str]] = None) -> str:
     text = chunk["text"][:MAX_CHARS_IN_PROMPT]
     prompt = (
         "You write multiple-choice questions from course material.\n"
@@ -51,6 +51,9 @@ def build_prompt(chunk: dict, problems: Optional[list[str]] = None) -> str:
         f"Topic: {chunk.get('topic_name', chunk['topic_id'])}\n"
         f'Text:\n"""\n{text}\n"""\n'
     )
+    if avoid:  # a short lesson gives several questions per passage: each one must test a different idea
+        prompt += ("\nThe quiz already has these questions. Ask about a DIFFERENT idea from the text, not a rewording:\n"
+                   + "\n".join(f"- {a}" for a in avoid[-8:]) + "\n")
     if problems:
         prompt += "\nYour previous attempt was rejected: " + "; ".join(problems) + ". Fix this.\n"
     return prompt
@@ -128,12 +131,13 @@ def generate_item(
     item_id: str,
     rng: Optional[random.Random] = None,
     verifier: Optional[LLM] = None,
+    avoid: Optional[list[str]] = None,
 ) -> tuple[Optional[QuizItem], bool]:
     """Returns (item or None, passed_on_first_try). Regenerates once on failure."""
     rng = rng or random.Random()
     problems: list[str] = []
     for attempt in range(2):
-        item, problems = _try_build(llm(build_prompt(chunk, problems or None)), chunk, item_id)
+        item, problems = _try_build(llm(build_prompt(chunk, problems or None, avoid)), chunk, item_id)
         if item is not None and not problems and verifier is not None:
             ok, why = verify_item(verifier, chunk, item)
             if not ok:
@@ -200,4 +204,39 @@ def generate_quiz(
         result.first_try_ok += int(first_try)
         if item is not None:
             result.items.append(item)
+    _top_up(result, llm, chunks, n, weak_topic_ids, skip_topics, rng, verifier)
     return result
+
+
+TOP_UP_MIN_CHARS = 150   # a short lesson: passages shorter than select_chunks' 400 characters still hold a question
+
+
+def _norm_stem(stem: str) -> str:
+    return " ".join(re.findall(r"\w+", stem.lower()))
+
+
+def _top_up(result: GenerationResult, llm: LLM, chunks: list[dict], n: int, weak_topic_ids: Iterable[str],
+            skip_topics: Iterable[str], rng: Optional[random.Random], verifier: Optional[LLM]) -> None:
+    """Fewer questions than asked (a one- or two-page lesson): ask again on the same passages, each time for a
+    different idea than the questions already made. At most two tries per missing question, duplicates dropped."""
+    missing = n - len(result.items)
+    if missing <= 0:
+        return
+    rng = rng or random.Random()
+    weak, skip = set(weak_topic_ids), set(skip_topics)
+    pool = [c for c in chunks if c["topic_id"] not in skip and len(c["text"]) >= TOP_UP_MIN_CHARS]
+    if not pool:
+        return
+    pool.sort(key=lambda c: (c["topic_id"] not in weak, -len(c["text"])))   # weak topics, then the longest passages
+    seen = {_norm_stem(it.stem) for it in result.items}
+    for i in range(2 * missing):
+        if len(result.items) >= n:
+            break
+        chunk = pool[i % len(pool)]
+        item, first_try = generate_item(llm, chunk, f"{result.quiz_id}-x{i + 1}", rng, verifier,
+                                        avoid=[it.stem for it in result.items])
+        result.attempted += 1
+        result.first_try_ok += int(first_try)
+        if item is not None and _norm_stem(item.stem) not in seen:
+            seen.add(_norm_stem(item.stem))
+            result.items.append(item)

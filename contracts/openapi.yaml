@@ -171,6 +171,43 @@ paths:
               schema: { $ref: "#/components/schemas/JoinCode" }
         "403": { description: Not the teacher of this room }
 
+  /rooms/{room_id}/settings:
+    get:
+      tags: [M1 platform]
+      operationId: getRoomSettings
+      summary: The tutor's settings for this room. Any member.
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      responses:
+        "200":
+          description: The room's settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomSettings" }
+    put:
+      tags: [M1 platform]
+      operationId: setRoomSettings
+      summary: "Teacher of the room only: may the tutor answer from the web when the room's material has nothing?"
+      parameters:
+        - { $ref: "#/components/parameters/RoomId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [web_answers]
+              properties:
+                web_answers: { type: string, enum: [material_then_web, material_only] }
+      responses:
+        "200":
+          description: The saved settings
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RoomSettings" }
+        "403": { description: Not the teacher of this room }
+
   /rooms/{room_id}/students:
     get:
       tags: [M1 platform]
@@ -2293,6 +2330,17 @@ components:
           type: array
           items: { $ref: "#/components/schemas/StudentAtRisk" }
 
+    RoomSettings:
+      type: object
+      additionalProperties: false
+      required: [room_id, web_answers]
+      properties:
+        room_id: { type: string }
+        web_answers:
+          type: string
+          enum: [material_then_web, material_only]
+          description: "material_then_web (default): a question in the course's subject that the files miss is answered from the web, marked, and kept for the teacher. material_only: such questions go to the teacher. A question outside the course's subject is never searched."
+
     InboxQuestion:
       type: object
       additionalProperties: false
@@ -2303,9 +2351,20 @@ components:
         student_name: { type: string }
         text: { type: string }
         time: { type: string, format: date-time }
-        status: { type: string, enum: [open, answered] }
+        status: { type: string, enum: [open, web, answered], description: "web = the tutor answered it from the web (the room allows it); the teacher may confirm or replace it" }
         answer: { type: string, description: "empty while open" }
         answered_at: { type: [string, "null"], format: date-time }
+        web_answer: { type: string, description: "status web: what the tutor answered from the web" }
+        web_sources:
+          type: array
+          description: "status web: the pages the web answer came from"
+          items:
+            type: object
+            additionalProperties: false
+            required: [title, url]
+            properties:
+              title: { type: string }
+              url: { type: string }
 
     InboxQuestions:
       type: object

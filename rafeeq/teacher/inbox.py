@@ -74,6 +74,30 @@ def escalate(room_id: str, question: str, user_id: str | None, store: Any = None
         return None
 
 
+def log_web_answer(room_id: str, question: str, user_id: str | None, answer: dict, store: Any = None) -> dict | None:
+    """The tutor answered a question from the web (the room allows it): keep it for the teacher with status "web".
+    The teacher can confirm it (it becomes their answer) or write their own; until then it is never reused as verified.
+    The same question from the same student is kept once."""
+    store = store or cr.get_store()
+    question = (question or "").strip()
+    if store is None or not room_id or not question:
+        return None
+    try:
+        for item in _items(store, room_id):
+            v = item.value
+            if v.get("status") == "web" and v.get("user_id") == user_id and _similar(v["text"], question) >= 0.9:
+                return {"question_id": item.key}
+        qid = f"q_{uuid.uuid4().hex[:10]}"
+        sources = [{"title": s.get("title", ""), "url": s.get("url", "")} for s in (answer or {}).get("web_sources", [])][:6]
+        store.put(_ns(room_id), qid, {"question_id": qid, "user_id": user_id, "text": question[:1000], "time": _now(),
+                                      "status": "web", "answer": "", "web_answer": str((answer or {}).get("answer", ""))[:4000],
+                                      "web_sources": sources, "answered_at": None})
+        return {"question_id": qid}
+    except Exception as e:
+        log.warning("inbox: could not keep a web answer: %s", e)
+        return None
+
+
 def find_verified(room_id: str, question: str, store: Any = None) -> dict | None:
     """A teacher's answer to the same question, or None."""
     store = store or cr.get_store()
@@ -101,12 +125,13 @@ def list_questions(room_id: str, user_id: str | None = None, store: Any = None) 
     out = []
     for item in _items(store, room_id):
         v = dict(item.value)
-        if user_id is not None and v.get("user_id") != user_id:
-            continue
+        if user_id is not None and (v.get("user_id") != user_id or v.get("status") == "web"):
+            continue                                   # a student already got the web answer: their list shows teacher questions only
         v["student_name"] = names.get(v.get("user_id") or "", "")
         out.append(v)
     out.sort(key=lambda v: v.get("time") or "", reverse=True)
-    out.sort(key=lambda v: v.get("status") != "open")  # open questions first, newest first within each group
+    rank = {"open": 0, "web": 1}
+    out.sort(key=lambda v: rank.get(v.get("status"), 2))  # open first, then answered from the web (to review), then answered
     return out
 
 
@@ -206,3 +231,4 @@ def connect() -> None:
 
     clients.connect("escalate", lambda room_id, question, user_id: escalate(room_id, question, user_id))
     clients.connect("find_verified", lambda room_id, question: find_verified(room_id, question))
+    clients.connect("log_web_answer", lambda room_id, question, user_id, answer: log_web_answer(room_id, question, user_id, answer))

@@ -1,3 +1,4 @@
+from rafeeq.teacher.lecturer.material import material_for
 from rafeeq.teacher.lecturer.nodes.utils import build_chain, format_optional, format_outline, warn_if_count_differs
 from rafeeq.teacher.lecturer.prompts import QUIZ_PROMPT
 from rafeeq.teacher.lecturer.schemas import QuizOutput
@@ -12,6 +13,7 @@ def quiz_agent(state) -> dict:
     result = chain.invoke({
         "topic": brief["topic"],
         "outline": format_outline(state.get("outline")),
+        "material": material_for(state),
         "level": brief["student_level"],
         "num_questions": brief["num_quiz_questions"],
         "language": brief["language"],
