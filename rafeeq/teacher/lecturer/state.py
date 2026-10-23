@@ -29,6 +29,7 @@ class SessionState(TypedDict):
     memory_context: list[str]
 
     # 3) Agents (each agent stores plain dicts, via model_dump())
+    material: str               # passages of the room's uploaded files (material.py); "" = none found
     outline: list[str]
     slides: list[dict]
     code_examples: list[dict]

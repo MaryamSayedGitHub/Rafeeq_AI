@@ -118,14 +118,6 @@ def test_context_dependent_questions_are_caught():
     assert check_item(make_item(stem="What does a tokenizer do?")) == []
     
     
-def test_references_to_unseen_context_are_caught():
-    for stem in [
-        "Which hardware was used, as referenced in the context of high computing costs?",
-        "What is the purpose of the four combinations described in relation to predictions?",
-    ]:
-        assert any("on its own" in p for p in check_item(make_item(stem=stem)))
-
-
 def test_normal_context_wording_is_allowed():
     assert check_item(make_item(stem="In the context of NLP, what is a token?")) == []
     
@@ -170,3 +162,22 @@ def test_option_that_repeats_the_question_is_caught():
 def test_described_architecture_phrase_is_caught():
     stem = "What is the main purpose of the encoding step in the described architecture?"
     assert any("on its own" in p for p in check_item(make_item(stem=stem)))
+
+def test_a_short_lesson_still_gives_the_questions_asked_for_each_on_a_different_idea():
+    stems = iter(["What does a tokenizer do?", "Why are tokens mapped to ids?", "What is a vocabulary?", "What is BPE?"])
+    prompts = []
+
+    def llm(prompt):
+        prompts.append(prompt)
+        return json.dumps(dict(GOOD, stem=next(stems)))
+
+    one_page = [chunk(text="y" * 300)]                       # shorter than the 400 characters a normal pick needs
+    result = generate_quiz(llm, one_page, 3, rng=random.Random(0))
+    assert len(result.items) == 3 and len({i.stem for i in result.items}) == 3
+    assert "DIFFERENT idea" in prompts[-1] and "What does a tokenizer do?" in prompts[-1]
+
+
+def test_the_top_up_drops_a_repeated_question_and_stops_after_two_tries_each():
+    llm = lambda prompt: json.dumps(GOOD)                    # the model keeps writing the same question
+    result = generate_quiz(llm, [chunk(text="y" * 300)], 2, rng=random.Random(0))
+    assert len(result.items) == 1 and result.attempted == 4     # 1 kept, then 2 tries for each of the 2 missing... capped

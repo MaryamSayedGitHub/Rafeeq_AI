@@ -13,6 +13,7 @@ from starlette.concurrency import run_in_threadpool
 
 from rafeeq.copilot.supervisor import handle_message
 from rafeeq.platform import service
+from rafeeq.platform import access
 from rafeeq.samples import load_sample
 from rafeeq.snap.reader import NotAnImage, ReaderUnavailable, read_snap
 from rafeeq.teacher import class_report
@@ -122,6 +123,23 @@ def rename_room(room_id: str, request: CreateRoomRequest, authorization: str | N
     return _run(_store().rename_room, _required_user(authorization), room_id, request.name)
 
 
+class RoomSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    web_answers: Literal["material_then_web", "material_only"]
+
+
+@router.get("/rooms/{room_id}/settings")
+def get_room_settings(room_id: str, authorization: str | None = Header(default=None)):
+    """The tutor's settings for this room (any member may read them)."""
+    return _run(_store().room_settings, _required_user(authorization), room_id)
+
+
+@router.put("/rooms/{room_id}/settings")
+def put_room_settings(room_id: str, request: RoomSettings, authorization: str | None = Header(default=None)):
+    """The room's teacher decides whether the tutor may answer from the web when the material has nothing."""
+    return _run(_store().set_room_settings, _required_user(authorization), room_id, request.web_answers)
+
+
 @router.post("/rooms/join")
 def join_room(request: JoinRoomRequest, authorization: str | None = Header(default=None)):
     user = _current_user(authorization)
@@ -187,6 +205,8 @@ def list_room_students(room_id: str, authorization: str | None = Header(default=
 async def snap_and_ask(photo: UploadFile = File(...), room_id: str | None = Form(None),
                        authorization: str | None = Header(default=None)):
     user = _current_user(authorization)
+    if user is None and not access.anonymous_allowed():
+        raise HTTPException(status_code=401, detail="Log in first")   # the vision model costs money: never for anonymous callers
     if user is not None and room_id:
         _run(_store().room_for, user, room_id)
     data = await photo.read(MAX_UPLOAD_BYTES + 1)
@@ -204,12 +224,15 @@ async def snap_and_ask(photo: UploadFile = File(...), room_id: str | None = Form
 @router.post("/copilot/message")
 def copilot_message(request: CopilotRequest, authorization: str | None = Header(default=None)):
     user = _current_user(authorization)
+    if user is None and not access.anonymous_allowed():
+        raise HTTPException(status_code=401, detail="Log in first")   # answers come from the room's material: members only
     user_id = None
     if user is not None:
         _run(_store().room_for, user, request.room_id)
         user_id = user["user_id"]
     out = handle_message(request.room_id, request.text, request.file_id, request.mode, user_id)
-    if user is not None and user["role"] == "student":
+    # Only real questions count for the teacher ("quiz me", "what next" and a photo's text are not questions).
+    if user is not None and user["role"] == "student" and out["route"] == "ask":
         _store().record_question(user_id, request.room_id)
         # M5: keep the question for the lecturer's Class insights, under the topic of the pages the
         # answer cited (M2) when there are any; otherwise class_report groups it later.

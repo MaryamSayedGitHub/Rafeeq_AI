@@ -46,7 +46,7 @@ def _chunks() -> list[dict]:
     """Development stand-in: one book, used only when M2's knowledge base is off."""
     path = os.getenv("M4_BOOK_PDF", "data/Hands-On_Large_Language_Models.pdf")
     if not Path(path).is_file():
-        log.warning("quiz: %s not found and the knowledge base is off: no material to quiz on", path)
+        log.info("quiz: no fallback book at %s (fine: quizzes use the room's indexed material)", path)
         return []
     from rafeeq.quiz.dev.book_chunks import load_chunks
 

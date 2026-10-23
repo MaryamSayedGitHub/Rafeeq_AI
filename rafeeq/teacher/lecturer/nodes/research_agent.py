@@ -1,5 +1,6 @@
 import logging
 
+from rafeeq.teacher.lecturer.material import NO_MATERIAL, room_material
 from rafeeq.teacher.lecturer.nodes.utils import build_chain, format_optional
 from rafeeq.teacher.lecturer.mcp_servers.mcp_client import web_search
 from rafeeq.teacher.lecturer.prompts import RESEARCH_PROMPT
@@ -33,9 +34,14 @@ def _search(brief: dict) -> str:
     return text[:MAX_SEARCH_CHARS]
 
 
+NOT_SEARCHED = "(not searched: the room's own material covers the topic)"
+
+
 def research_agent(state) -> dict:
-    """Reads: brief.   Writes: outline."""
+    """Reads: brief.   Writes: material, outline.
+    The room's uploaded material comes first; the web is searched only when the room has nothing on the topic."""
     brief = state["brief"]
+    material = room_material(brief)
 
     chain = build_chain(RESEARCH_PROMPT, OutlineOutput, temperature=0.3)
 
@@ -44,10 +50,11 @@ def research_agent(state) -> dict:
         "level": brief["student_level"],
         "duration": brief["duration_minutes"],
         "objectives": format_optional(brief.get("learning_objectives")),
-        "search_results": _search(brief),
+        "material": material or NO_MATERIAL,
+        "search_results": NOT_SEARCHED if material else _search(brief),
     })
 
-    return {"outline": result.sections}
+    return {"material": material, "outline": result.sections}
 
 
 if __name__ == "__main__":

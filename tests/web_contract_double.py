@@ -49,6 +49,7 @@ class _DictStore:
 class ContractDouble:
     def __init__(self, disabled: set[str] | None = None):
         self.disabled = disabled or set()   # route keys that answer 404 (not implemented yet)
+        self.settings: dict[str, str] = {}   # room_id -> web_answers
         self.violations: list[str] = []
         self.video_saved = False            # True: the status route reports the clip as saved in the library
         self.calls: list[tuple[str, str, object]] = []
@@ -215,6 +216,14 @@ class ContractDouble:
                 return JSONResponse(load_sample(sample))
             return handler
 
+        def fixed_get(key, body):
+            async def handler(request):
+                if (g := d._guard(key)):
+                    return g
+                d.calls.append((request.method, request.url.path, dict(request.query_params)))
+                return JSONResponse(body)
+            return handler
+
         def sample_post(key, schema, sample):
             async def handler(request):
                 if (g := d._guard(key)):
@@ -232,6 +241,18 @@ class ContractDouble:
             if "teacher_id" not in request.query_params:
                 d.violations.append("GET /teacher/profile: missing teacher_id")
             return JSONResponse(load_sample("teacher_profile"))
+
+        async def room_settings(request):
+            if (g := d._guard("settings")):
+                return g
+            rid = request.path_params["room_id"]
+            if request.method == "PUT":
+                body = await request.json()
+                if set(body) != {"web_answers"} or body["web_answers"] not in ("material_then_web", "material_only"):
+                    d.violations.append(f"PUT /rooms/{rid}/settings: bad body {body}")
+                    return JSONResponse({"detail": "bad"}, status_code=422)
+                d.settings[rid] = body["web_answers"]
+            return JSONResponse({"room_id": rid, "web_answers": d.settings.get(rid, "material_then_web")})
 
         async def video_generate(request):
             if (g := d._guard("videos")):
@@ -288,6 +309,7 @@ class ContractDouble:
             Route("/rooms/{room_id}/files", files, methods=["GET", "POST"]),
             Route("/rooms/{room_id}/files/{file_id}", file_delete, methods=["DELETE"]),
             Route("/rooms/{room_id}/students", students, methods=["GET"]),
+            Route("/rooms/{room_id}/settings", room_settings, methods=["GET", "PUT"]),
             Route("/snap", snap, methods=["POST"]),
             Route("/copilot/message", copilot, methods=["POST"]),
             Route("/rooms/{room_id}/topics", sample_get("topics", "room_topics"), methods=["GET"]),
@@ -296,6 +318,11 @@ class ContractDouble:
             Route("/quiz/{quiz_id}/submit", sample_post("quiz", "SubmitQuizRequest", "submit_quiz"), methods=["POST"]),
             Route("/next-step", sample_get("next_step", "next_step", ("room_id",)), methods=["GET"]),
             Route("/profile/summary", sample_get("summary", "student_summary", ("room_id",)), methods=["GET"]),
+            # M4 extras the Progress page reads (not in contracts/samples: shapes from rafeeq/quiz/router.py)
+            Route("/rooms/{room_id}/topic-scores", fixed_get("summary", {"topics": [
+                {"topic_id": "t_genetics", "average": 0.35, "quizzes": 2, "weak": True},
+                {"topic_id": "t_energy", "average": 0.75, "quizzes": 1, "weak": False}]}), methods=["GET"]),
+            Route("/rooms/{room_id}/quiz-history", fixed_get("summary", {"quizzes": []}), methods=["GET"]),
             Route("/teacher/rooms/{room_id}/insights", sample_get("insights", "insights"), methods=["GET"]),
             Route("/teacher/rooms/{room_id}/report", sample_get("report", "class_report"), methods=["GET"]),
             Route("/teacher/rooms/{room_id}/students/{user_id}/parent-report", parent_report, methods=["GET"]),

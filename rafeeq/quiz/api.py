@@ -1,9 +1,10 @@
 """M4 router. M1 mounts it; role checks come from M1 (stubbed here)."""
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
+from rafeeq.platform import access
 from rafeeq.quiz.contracts import (
     ClassProfileRow,
     Event,
@@ -27,8 +28,22 @@ MAX_PHOTO_BYTES = 15 * 1024 * 1024
 router = APIRouter()
 
 
+def _own_event(authorization: str | None, user_id: str, room_id: str) -> None:
+    """An event moves a student's mastery: over HTTP only that logged-in student, in a room they belong to,
+    may send it (the app's own modules record events in-process and never come through here)."""
+    if access.anonymous_allowed() and not authorization:
+        return
+    user = access.user_from_header(authorization)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Log in first")
+    if user["user_id"] != user_id:
+        raise HTTPException(status_code=403, detail="You can only send your own events")
+    access.member_by_id(user_id, room_id)
+
+
 @router.post("/internal/record_event")
-def record_event(event: Event, session: Session = Depends(get_session)) -> dict:
+def record_event(event: Event, session: Session = Depends(get_session), authorization: str | None = Header(default=None)) -> dict:
+    _own_event(authorization, event.user_id, event.room_id)
     state = service.record_event(session, event)
     return {"ok": True, "mastery": state.mastery, "weak": service.is_weak(state)}
 
@@ -63,6 +78,7 @@ def create_quiz(
     verifier=Depends(get_verifier),
     room_fn=Depends(get_room_chunks),
 ):
+    access.member_by_id(user_id, room_id)
     chunks = material(room_fn, room_id, chunks)
     try:
         return quiz_service.create_quiz(
@@ -145,12 +161,12 @@ async def grade_sheet(
 
 
 @router.get("/rooms/{room_id}/class-profile", response_model=list[ClassProfileRow])
-def class_profile(room_id: str, session: Session = Depends(get_session)):
-    # TODO: require_instructor(room_id) from M1, and names from M1
+def class_profile(room_id: str, session: Session = Depends(get_session), user_id: str = Depends(current_user_id)):
+    access.teacher_by_id(user_id, room_id)
     return quiz_service.class_profile(session, room_id)
 
 
 @router.get("/rooms/{room_id}/wrong-answers", response_model=list[WrongAnswerRow])
-def wrong_answers(room_id: str, session: Session = Depends(get_session)):
-    # TODO: require_instructor(room_id) from M1
+def wrong_answers(room_id: str, session: Session = Depends(get_session), user_id: str = Depends(current_user_id)):
+    access.teacher_by_id(user_id, room_id)
     return quiz_service.wrong_answers(session, room_id)

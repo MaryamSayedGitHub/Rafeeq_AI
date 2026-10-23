@@ -59,25 +59,38 @@ def _describe(error: BaseException) -> str:
     return text
 
 
-def run_async(coro):
-    """Run a coroutine from sync code, even if an event loop is already running (e.g. FastAPI)."""
+# Every MCP call has a deadline: a tool server that never answers (it did not start, it waits on stdin,
+# a hosted server hangs) must end in an error the caller can fall back from, never in a request that spins forever.
+MCP_TIMEOUT = float(os.getenv("MCP_TIMEOUT_SECONDS", "90"))
+
+
+def run_async(coro, timeout: float | None = None):
+    """Run a coroutine from sync code, even if an event loop is already running (e.g. FastAPI).
+    Raises TimeoutError after `timeout` seconds (default MCP_TIMEOUT)."""
+    timeout = MCP_TIMEOUT if timeout is None else timeout
+
+    async def bounded():
+        return await asyncio.wait_for(coro, timeout)
+
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(coro)  # no loop running: the normal case
+        return asyncio.run(bounded())  # no loop running: the normal case
 
     # A loop is already running in this thread: run the coroutine in a helper thread.
     box: dict = {}
 
     def worker():
         try:
-            box["value"] = asyncio.run(coro)
+            box["value"] = asyncio.run(bounded())
         except BaseException as e:  # noqa: BLE001 - re-raised below in the caller's thread
             box["error"] = e
 
-    t = threading.Thread(target=worker)
+    t = threading.Thread(target=worker, daemon=True)
     t.start()
-    t.join()
+    t.join(timeout + 15)  # wait_for normally ends it; this is the last guard if cancelling itself hangs
+    if t.is_alive():
+        raise TimeoutError(f"the MCP tool did not answer within {timeout:.0f} s")
     if "error" in box:
         raise box["error"]
     return box["value"]

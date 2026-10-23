@@ -1,6 +1,7 @@
 import logging
 import re
 
+from rafeeq.teacher.lecturer.material import material_for
 from rafeeq.teacher.lecturer.nodes.utils import build_chain, format_optional, format_outline, warn_if_count_differs
 from rafeeq.teacher.lecturer.llm import get_llm
 from rafeeq.teacher.lecturer.mcp_servers.mcp_client import run_python_code
@@ -74,6 +75,7 @@ def code_agent(state) -> dict:
     result = chain.invoke({
         "topic": brief["topic"],
         "outline": format_outline(state.get("outline")),
+        "material": material_for(state),
         "level": brief["student_level"],
         "programming_language": brief["programming_language"],
         "num_examples": num_examples,

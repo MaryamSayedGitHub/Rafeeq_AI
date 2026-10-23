@@ -36,7 +36,7 @@
       </div>
       {% endif %}
     {% elif r.grounded %}
-      <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('tutor.fallback', why=r.error or out.error or '') }}</span></div>
+      <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ student_reason(r.error or out.error) or t('tutor.fallback') }}</span></div>
       <div class="answer-text" dir="auto">{{ r.answer }}</div>
       {% if r.citations %}
       <div class="sources">
@@ -47,7 +47,7 @@
       </div>
       {% endif %}
     {% else %}
-      <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('tutor.research_failed', why=out.error or r.error or '') }}</span></div>
+      <div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ student_reason(out.error or r.error) or t('tutor.research_failed') }}</span></div>
     {% endif %}
   </div>
 </div>

@@ -1,6 +1,7 @@
 # Rafeeq · رفيق
 
-![Rafeeq — an Arabic-first AI learning companion](docs/images/rafeeq-banner.png)
+<img width="2001" height="900" alt="rafeeq-banner" src="https://github.com/user-attachments/assets/b59e0fc5-a2eb-43e8-a212-39908e594bc9" />
+
 
 > **Every teacher sees. Every student understands.**
 
@@ -62,11 +63,22 @@ FastAPI + Jinja2 + HTMX (one server-rendered app, no separate frontend build), L
 ## Run it locally
 
 ```bash
-uv sync
+uv sync --extra knowledge          # the knowledge extra adds the embedder (bge-m3) and FAISS
+copy .env.example .env             # macOS/Linux: cp .env.example .env ; then put your Groq key in LLM_API_KEY and GROQ_API_KEY
+docker compose up -d db            # optional: keeps the teacher data across restarts
 uv run uvicorn rafeeq.main:app --reload
 ```
 
-Open http://127.0.0.1:8000 — you should see the Arabic home page.
+Open http://127.0.0.1:8000 — you should see the Arabic home page. The first PDF upload downloads the embedder (about 2.3 GB), so the first indexing takes a few minutes.
+
+Check every part end to end (while the server runs, in a second terminal):
+
+```bash
+uv run python -m rafeeq.copilot.check_llm      # the hosted model answers, routes and reads images
+uv run python scripts/smoke_check.py           # teacher, student, room, PDF, Copilot, quiz, Snap, teacher reports
+```
+
+The second command prints PASS / WARN / FAIL for each step and saves `results/smoke_check.json`.
 
 **With Docker** (also starts Postgres):
 
@@ -78,7 +90,8 @@ docker compose up --build
 
 One app, one router, specialised agents:
 
-![Rafeeq architecture: people, web app, Copilot router, agents, knowledge, models](docs/images/rafeeq-architecture.png)
+<img width="2001" height="990" alt="rafeeq-architecture" src="https://github.com/user-attachments/assets/9e6caf3d-e37b-4401-a5c9-46404430e6f7" />
+
 
 ### Modules
 
@@ -542,6 +555,7 @@ Set these in `.env` (locally) or in the Render environment:
 | `INSTRUCTOR_PIN` | When set, required as a header on the instructor routes |
 | `TUTOR_SAMPLE_FALLBACK=0` | Turn off the sample-data fallback |
 | `RAFEEQ_CONNECT_M3=0` | Switch off the M3 connection (tests do) |
+| `RAFEEQ_ALLOW_ANONYMOUS=1` | Development mode only (the tests set it): routes skip the login and room checks. Never on a real server |
 | `SNAP_MARK_UNCERTAIN` | Reader marks what it cannot see (default 1) |
 
 Level 2, Snap and Review data are kept in the git-ignored `data/` folder.
@@ -586,7 +600,7 @@ Every AI part is scored by a script against a frozen test set (locked by a SHA-2
 | Hybrid search | **100% Hit@5**, MRR 0.788 | 42 held-out questions |
 | Handwriting reading (CER) | **0.53 → 0.13** after OpenCV preprocessing | vision model, raw vs preprocessed, 20 images |
 | Step checking | **36 / 38** steps judged correctly; no hint leaked a solution | 14 test cases |
-| Automated tests | **274** pass, plus every sample checked against the API contract | `uv run pytest` |
+| Automated tests | **1,320+** pass, plus every sample checked against the API contract | `uv run pytest` |
 
 > **Caveat.** The test sets are small and the handwriting images are synthetic, so these numbers show the pipeline works, not final accuracy. Re-measure on real photos (see above) before quoting them as results.
 

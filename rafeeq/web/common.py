@@ -42,6 +42,19 @@ def yt_embed(url: str, start=None, end=None) -> str:
 
 
 templates.env.globals["yt_embed"] = yt_embed
+
+
+def student_reason(text: str | None) -> str:
+    """The part of a tool error a student may see: only the tutor's own sentences, already in the student's language
+    (a refused illegal or 18+ search, web search turned off in this room). Key names, exceptions and provider errors stay in the log."""
+    from rafeeq.tutor.safety import MESSAGE
+    from rafeeq.tutor.scope import WEB_OFF
+
+    text = (text or "").strip()
+    return text if text in MESSAGE.values() or text in WEB_OFF.values() else ""
+
+
+templates.env.globals["student_reason"] = student_reason
 templates.env.trim_blocks = True
 templates.env.lstrip_blocks = True
 

@@ -158,7 +158,9 @@ def test_level_2_that_cannot_search_still_answers_from_the_material(room, monkey
     monkeypatch.delenv("TAVILY_API_KEY")
     monkeypatch.setattr(web_search, "multi_search", lambda *a, **k: (_ for _ in ()).throw(web_search.SearchError("TAVILY_API_KEY is not set.")))
     html = agent(student, rid, action="research", text="What does the mitochondria do?", pages="1").text
-    assert "TAVILY_API_KEY is not set" in html and "biology_ch3.pdf" in html and "study-files/" not in html
+    # the student sees a plain sentence, never the key name (the reason is in the server log)
+    assert "TAVILY_API_KEY" not in html and "البحث في الويب غير متاح الآن" in html
+    assert "biology_ch3.pdf" in html and "study-files/" not in html
 
 
 def test_rewrite_under_an_answer(room):
