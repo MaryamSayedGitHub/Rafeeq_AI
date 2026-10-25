@@ -39,9 +39,17 @@ def _attention(request: Request, room_id: str, files_res, students_res, report_r
     if students_res.ok and not students_res.data.get("students"):
         items.append({"icon": "users", "tone": "amber", "text": tr(request, "attn.no_students"),
                       "code": join_code})
-    if report_res.ok and report_res.data.get("students_at_risk"):
-        n = len(report_res.data["students_at_risk"])
+    students = students_res.data.get("students", []) if students_res.ok else []
+    if report_res.ok:
+        n = len(report_res.data.get("students_at_risk", []))
+    else:   # the class report did not load: the students list still carries each student's level
+        n = sum(1 for s in students if s.get("status") == "struggling")
+    if n:
         items.append({"icon": "alert", "tone": "red", "text": tr(request, "attn.at_risk", n=n),
+                      "action": tr(request, "attn.view_students"), "href": f"/rooms/{room_id}/students"})
+    no_data = sum(1 for s in students if s.get("status") is None)
+    if students and no_data:
+        items.append({"icon": "quiz", "tone": "blue", "text": tr(request, "attn.no_data", n=no_data),
                       "action": tr(request, "attn.view_students"), "href": f"/rooms/{room_id}/students"})
     return items
 
@@ -69,6 +77,17 @@ def _next_step(request: Request, room_id: str, files_res, insights_res, report_r
     return {"text": tr(request, "next.wait"), "action": None, "href": None}
 
 
+def _student_charts(students: list) -> tuple[dict, list]:
+    """Data for the overview charts, from the students list (it carries each student's level and questions)."""
+    levels = {"on_track": 0, "watch": 0, "struggling": 0, "none": 0}
+    for s in students:
+        levels[s.get("status") if s.get("status") in levels else "none"] += 1
+    bars = [{"name": s["name"], "mastery": s.get("mastery"), "status": s.get("status"),
+             "questions": s.get("questions_this_week", 0)} for s in students]
+    bars.sort(key=lambda b: (b["mastery"] is None, b["mastery"] if b["mastery"] is not None else 0, b["name"]))
+    return levels, bars
+
+
 async def overview_page(request: Request):
     user, room, rooms = await load_room(request, request.path_params["room_id"], "teacher")
     rid, tok = room["room_id"], user["token"]
@@ -92,7 +111,9 @@ async def overview_page(request: Request):
         "questions": sum(s["questions_this_week"] for s in students) if students_res.ok else None,
         "at_risk": len(report_res.data.get("students_at_risk", [])) if report_res.ok else None,
     }
+    levels, bars = _student_charts(students) if students_res.ok else ({}, [])
     return render(request, "room/overview.html", room=room, rooms=rooms, tab="overview", stats=stats,
+                  levels=levels, bars=bars, max_questions=max([b["questions"] for b in bars] + [1]),
                   join_code=join_code, created=request.query_params.get("created") == "1",
                   attention=_attention(request, rid, files_res, students_res, report_res, join_code),
                   next_step=_next_step(request, rid, files_res, insights_res, report_res, names),
@@ -127,6 +148,9 @@ async def students_page(request: Request):
     ensure_session(request, students_res)
     at_risk = [{"name": s["name"], "topics": [names.get(tid, tid) for tid in s["topic_ids"]]}
                for s in report_res.get("students_at_risk", [])]
+    if not report_res.ok and students_res.ok:   # the students list carries each level: still show who needs support
+        at_risk = [{"name": s["name"], "topics": []} for s in students_res.data.get("students", [])
+                   if s.get("status") == "struggling"]
     return render(request, "room/students.html", room=room, rooms=rooms, tab="students", students_res=students_res,
                   report_res=report_res, at_risk=at_risk, join_code=_join_code_of(code_res), topic_names=names)
 
@@ -420,6 +444,15 @@ async def profile_avatar(request: Request):
 
 # ---------------------------------------------------------------- parent report
 
+def _public_base(request: Request) -> str:
+    """Where parents open the report (ends in /p/). PUBLIC_BASE_URL wins over the address the teacher is using."""
+    import os
+
+    configured = os.environ.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
+    origin = configured or f"{request.url.scheme}://{request.url.netloc}"
+    return origin + u(request, "/p/")
+
+
 async def parent_report_page(request: Request):
     user, room, rooms = await load_room(request, request.path_params["room_id"], "teacher")
     uid = request.path_params["user_id"]
@@ -427,10 +460,204 @@ async def parent_report_page(request: Request):
                                  token=user["token"])
     ensure_session(request, res)
     share_url = ""
+    delivery = {}
     if res.ok and res.data.get("share_token"):
-        share_url = f"{request.url.scheme}://{request.url.netloc}" + u(request, f"/p/{res.data['share_token']}")
+        share_url = _public_base(request) + res.data["share_token"]
+        d = await api(request).get(f"/teacher/rooms/{room['room_id']}/students/{quote(uid, safe='')}/parent-delivery",
+                                   token=user["token"], params={"base": _public_base(request)})
+        delivery = d.data if d.ok and isinstance(d.data, dict) else {}
     return render(request, "room/parent_report.html", room=room, rooms=rooms, tab="students",
-                  report_res=res, share_url=share_url)
+                  report_res=res, share_url=share_url, delivery=delivery, student_id=uid)
+
+
+async def parent_contact_save(request: Request):
+    user, room, _ = await load_room(request, request.path_params["room_id"], "teacher")
+    uid = request.path_params["user_id"]
+    form = await check_csrf(request)
+    res = await api(request).put(f"/teacher/rooms/{room['room_id']}/students/{quote(uid, safe='')}/parent-contact",
+                                 token=user["token"],
+                                 json={"email": str(form.get("email", "")), "phone": str(form.get("phone", ""))})
+    ensure_session(request, res)
+    flash(request, "success" if res.ok else "error",
+          tr(request, "parent.contact_saved") if res.ok else tr(request, "parent.contact_bad"))
+    return redirect(request, f"/rooms/{room['room_id']}/students/{uid}/report")
+
+
+async def parent_report_send_email(request: Request):
+    user, room, _ = await load_room(request, request.path_params["room_id"], "teacher")
+    uid = request.path_params["user_id"]
+    form = await check_csrf(request)
+    res = await api(request).post(
+        f"/teacher/rooms/{room['room_id']}/students/{quote(uid, safe='')}/parent-report/send-email",
+        token=user["token"], json={"base": _public_base(request), "subject": str(form.get("subject", "")),
+                                   "text": str(form.get("text", ""))})
+    ensure_session(request, res)
+    if res.ok:
+        flash(request, "success", tr(request, "parent.email_sent"))
+    else:
+        flash(request, "error", res.message or api_message(request, res))
+    return redirect(request, f"/rooms/{room['room_id']}/students/{uid}/report")
+
+
+# ---------------------------------------------------------------- all parents at once (import, review, approve, send)
+
+def _batch_path(room_id: str, tail: str = "") -> str:
+    return f"/teacher/rooms/{room_id}/parent-batch{tail}"
+
+
+def _names(request: Request, items: list, limit: int = 6) -> str:
+    out = []
+    for it in items[:limit]:
+        why = it.get("reason", "")
+        label = it.get("name", "")
+        out.append(f"{label} ({tr(request, 'batch.reason.' + why)})" if why else label)
+    more = len(items) - limit
+    return "، ".join(out) + (f" +{more}" if more > 0 else "")
+
+
+async def parent_batch_page(request: Request):
+    user, room, rooms = await load_room(request, request.path_params["room_id"], "teacher")
+    res = await api(request).get(_batch_path(room["room_id"]), token=user["token"])
+    ensure_session(request, res)
+    data = res.data if res.ok and isinstance(res.data, dict) else {"drafts": [], "summary": {}, "email_ready": False}
+    share_base = _public_base(request)
+    return render(request, "room/parent_batch.html", room=room, rooms=rooms, tab="students", batch_res=res,
+                  batch=data, localhost=share_base.startswith(("http://127.0.0.1", "http://localhost")))
+
+
+async def _batch_post(request: Request, tail: str, json: dict | None = None, method: str = "post"):
+    user, room, _ = await load_room(request, request.path_params["room_id"], "teacher")
+    form = await check_csrf(request)
+    call = getattr(api(request), method)
+    res = await call(_batch_path(room["room_id"], tail), token=user["token"], json=json if json is not None else {})
+    ensure_session(request, res)
+    return room, form, res
+
+
+def _back(request: Request, room: dict):
+    return redirect(request, f"/rooms/{room['room_id']}/parent-batch")
+
+
+async def parent_batch_template(request: Request):
+    from starlette.responses import Response as FileResponse_
+
+    user, room, _ = await load_room(request, request.path_params["room_id"], "teacher")
+    res = await api(request).get(_batch_path(room["room_id"], "/template"), token=user["token"], timeout=60)
+    ensure_session(request, res)
+    if not res.ok:
+        flash(request, "error", res.message or api_message(request, res))
+        return _back(request, room)
+    return FileResponse_(res.content, media_type=res.headers.get(
+        "content-type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+        headers={"Content-Disposition": 'attachment; filename="rafeeq-parents.xlsx"', "X-Content-Type-Options": "nosniff"})
+
+
+async def parent_batch_import(request: Request):
+    import base64
+
+    user, room, _ = await load_room(request, request.path_params["room_id"], "teacher")
+    form = await check_csrf(request)
+    sheet = form.get("sheet")
+    raw = await sheet.read() if hasattr(sheet, "read") else b""
+    if not raw:
+        flash(request, "error", tr(request, "batch.f.upload"))
+        return _back(request, room)
+    res = await api(request).post(_batch_path(room["room_id"], "/import"), token=user["token"],
+                                  json={"filename": getattr(sheet, "filename", "") or "", "data_b64": base64.b64encode(raw).decode()})
+    ensure_session(request, res)
+    if not res.ok:
+        flash(request, "error", res.message or api_message(request, res))
+        return _back(request, room)
+    d = res.data
+    flash(request, "success", tr(request, "batch.f.imported", n=d["saved"]))
+    if d["unmatched"]:
+        flash(request, "warning", tr(request, "batch.f.unmatched", names=_names(request, d["unmatched"])))
+    if d["invalid"]:
+        flash(request, "warning", tr(request, "batch.f.invalid", names=_names(request, d["invalid"])))
+    return _back(request, room)
+
+
+async def parent_batch_prepare(request: Request):
+    room, _, res = await _batch_post(request, "/prepare", {"base": _public_base(request)})
+    if res.ok:
+        flash(request, "success", tr(request, "batch.f.prepared", n=res.data["prepared"]))
+        if res.data["no_contact"]:
+            flash(request, "warning", tr(request, "batch.f.no_contact", names="، ".join(res.data["no_contact"][:6])))
+    else:
+        flash(request, "error", res.message or api_message(request, res))
+    return _back(request, room)
+
+
+async def parent_batch_approve_all(request: Request):
+    room, _, res = await _batch_post(request, "/approve-all")
+    flash(request, "success" if res.ok else "error",
+          tr(request, "batch.f.approved", n=res.data["approved"]) if res.ok else (res.message or api_message(request, res)))
+    return _back(request, room)
+
+
+async def parent_batch_send_emails(request: Request):
+    room, _, res = await _batch_post(request, "/send-emails")
+    if res.ok:
+        flash(request, "success", tr(request, "batch.f.sent", n=res.data["sent"]))
+        if res.data["failed"]:
+            flash(request, "error", tr(request, "batch.f.failed", names="، ".join(
+                f"{f['name']}: {f['error']}" for f in res.data["failed"][:3])))
+    else:
+        flash(request, "error", res.message or api_message(request, res))
+    return _back(request, room)
+
+
+async def parent_batch_edit(request: Request):
+    uid = quote(request.path_params["user_id"], safe="")
+    user, room, _ = await load_room(request, request.path_params["room_id"], "teacher")
+    form = await check_csrf(request)
+    res = await api(request).put(_batch_path(room["room_id"], "/" + uid), token=user["token"],
+                                 json={"subject": str(form.get("subject", "")), "text": str(form.get("text", ""))})
+    ensure_session(request, res)
+    flash(request, "success" if res.ok else "error",
+          tr(request, "batch.f.saved") if res.ok else (res.message or api_message(request, res)))
+    return _back(request, room)
+
+
+async def parent_batch_status(request: Request):
+    uid = quote(request.path_params["user_id"], safe="")
+    user, room, _ = await load_room(request, request.path_params["room_id"], "teacher")
+    form = await check_csrf(request)
+    res = await api(request).post(_batch_path(room["room_id"], f"/{uid}/status"), token=user["token"],
+                                  json={"status": str(form.get("status", ""))})
+    ensure_session(request, res)
+    if not res.ok:
+        flash(request, "error", res.message or api_message(request, res))
+    return _back(request, room)
+
+
+async def parent_batch_wa_done(request: Request):
+    uid = quote(request.path_params["user_id"], safe="")
+    room, _, res = await _batch_post(request, f"/{uid}/whatsapp-sent")
+    if not res.ok:
+        flash(request, "error", res.message or api_message(request, res))
+    return _back(request, room)
+
+
+# ---------------------------------------------------------------- the student gives the parent's contact
+
+async def my_parent_page(request: Request):
+    user, room, rooms = await load_room(request, request.path_params["room_id"], "student")
+    res = await api(request).get(f"/rooms/{room['room_id']}/my-parent-contact", token=user["token"])
+    ensure_session(request, res)
+    return render(request, "room/my_parent.html", room=room, rooms=rooms, tab="study",
+                  contact=res.data if res.ok and isinstance(res.data, dict) else {"email": "", "phone": ""})
+
+
+async def my_parent_save(request: Request):
+    user, room, _ = await load_room(request, request.path_params["room_id"], "student")
+    form = await check_csrf(request)
+    res = await api(request).put(f"/rooms/{room['room_id']}/my-parent-contact", token=user["token"],
+                                 json={"email": str(form.get("email", "")), "phone": str(form.get("phone", ""))})
+    ensure_session(request, res)
+    flash(request, "success" if res.ok else "error",
+          tr(request, "myparent.saved") if res.ok else tr(request, "parent.contact_bad"))
+    return redirect(request, f"/rooms/{room['room_id']}/my-parent")
 
 
 async def parent_report_shared(request: Request):

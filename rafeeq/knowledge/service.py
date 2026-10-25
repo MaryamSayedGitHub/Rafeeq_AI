@@ -111,6 +111,7 @@ class KnowledgeService:
         exclude_non_content: bool | None = None,
         rerank: bool | None = None,
         status_callback: Callable[[str, str, str], None] | None = None,
+        replace_callback: Callable[[str, str, Path, str], None] | None = None,
         parse: Callable[[str], list[dict[str, Any]]] | None = None,
         llm: Any = None,
         room_topics: bool = False,
@@ -123,6 +124,7 @@ class KnowledgeService:
         self._exclude = _flag("RAFEEQ_KNOWLEDGE_EXCLUDE", True) if exclude_non_content is None else exclude_non_content
         self._rerank = _flag("RAFEEQ_KNOWLEDGE_RERANK", False) if rerank is None else rerank
         self._status_callback = status_callback
+        self._replace_callback = replace_callback
         self._parse = parse
         self._llm = llm
         # Learned per-room topics (topics/room_topics.py). Off unless asked for, so tests and scripts
@@ -219,6 +221,11 @@ class KnowledgeService:
         path = Path(path)
         prefix = f"{file_id}__"
         display_name = path.name[len(prefix):] if path.name.startswith(prefix) else path.name
+        from rafeeq.knowledge.ingestion import office
+
+        if office.is_convertible(path):  # a PowerPoint: converted to PDF here, in the background, then indexed
+            self._set_status(room_id, file_id, "indexing")
+            return self._pool.submit(self._convert_and_index, room_id, file_id, path, display_name)
         if path.suffix.lower() != ".pdf":
             log.warning("knowledge: %s is not a PDF; only PDFs can be indexed", display_name)
             self._set_status(room_id, file_id, "failed")
@@ -227,6 +234,35 @@ class KnowledgeService:
             return done
         self._set_status(room_id, file_id, "indexing")
         return self._pool.submit(self._index, room_id, file_id, path, display_name)
+
+    def _replace_file(self, room_id: str, file_id: str, new_path: Path, new_name: str) -> None:
+        if self._replace_callback is not None:
+            self._replace_callback(room_id, file_id, new_path, new_name)
+            return
+        from rafeeq.platform import service as platform
+
+        platform.get_store().replace_file(room_id, file_id, new_path, new_name)
+
+    def _convert_and_index(self, room_id: str, file_id: str, path: Path, display_name: str) -> int:
+        """.pptx -> PDF (one slide = one page), the PDF replaces the upload in the room, then it is indexed."""
+        from rafeeq.knowledge.ingestion import office
+
+        try:
+            pdf = office.to_pdf(path, path.parent)
+            pdf_name = Path(display_name).with_suffix(".pdf").name
+            final = path.with_name(f"{file_id}__{pdf_name}")
+            if pdf != final:
+                pdf.replace(final)
+            self._replace_file(room_id, file_id, final, pdf_name)
+        except office.ConversionError as e:
+            log.warning("knowledge: could not convert %s: %s", display_name, e)
+            self._set_status(room_id, file_id, "failed")
+            return 0
+        except Exception:
+            log.exception("knowledge: converting %s failed", display_name)
+            self._set_status(room_id, file_id, "failed")
+            return 0
+        return self._index(room_id, file_id, final, pdf_name)
 
     def remove_file(self, room_id: str, file_id: str) -> Future:
         """Register with `rafeeq.platform.service.on_delete`. Runs on the same single worker as

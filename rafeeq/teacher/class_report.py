@@ -118,7 +118,7 @@ def _all(store, namespace: tuple, page: int = 500) -> list:
 
 def _recent(items: list) -> list:
     cutoff = (_now() - timedelta(days=WINDOW_DAYS)).isoformat()
-    return [i for i in items if (i.value.get("time") or "") >= cutoff]
+    return [i for i in items if str(i.value.get("time") or "") >= cutoff]
 
 
 def room_topic_names(room_id: str) -> dict[str, str]:
@@ -241,10 +241,13 @@ def _status(mastery: float) -> str:
 def _mastery_by_student_topic(results: list) -> dict[tuple[str, str], float]:
     """(user_id, topic_id) -> mastery in [0, 1], newest quizzes weighing most."""
     mastery: dict[tuple[str, str], float] = {}
-    for item in sorted(results, key=lambda i: i.value.get("time") or ""):
+    for item in sorted(results, key=lambda i: str(i.value.get("time") or "")):
         v = item.value
-        key = (v["user_id"], v["topic_id"])
-        frac = v["score"] / max(v["total"], 1)
+        try:  # a malformed record must not take the whole report down
+            key = (v["user_id"], v["topic_id"])
+            frac = float(v["score"]) / max(float(v["total"]), 1)
+        except (KeyError, TypeError, ValueError):
+            continue
         mastery[key] = frac if key not in mastery else (1 - EMA_ALPHA) * mastery[key] + EMA_ALPHA * frac
     return mastery
 

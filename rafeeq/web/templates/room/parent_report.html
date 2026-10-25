@@ -17,6 +17,62 @@
 </div>
 {% if report_res.ok %}
   <p class="inline-note no-print">{{ icon('info', 16) }}<span>{{ t('parent.link_note') }}</span></p>
+  {% if share_url.startswith('http://127.0.0.1') or share_url.startswith('http://localhost') %}
+  <p class="inline-note no-print">{{ icon('info', 16) }}<span>{{ t('parent.localhost_warn') }}</span></p>
+  {% endif %}
+  {% set contact = delivery.get('contact', {}) %}
+  <section class="panel panel-pad no-print parent-send">
+    <h2 class="panel-title">{{ icon('send', 18) }}<span>{{ t('parent.send_title') }}</span></h2>
+    <p class="muted ps-intro">{{ t('parent.send_intro') }}</p>
+
+    <form class="ps-block" method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/students/' ~ student_id ~ '/parent-contact') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="form-grid">
+        <div class="field">
+          <label for="parent_email">{{ t('parent.email_label') }}</label>
+          <input class="input" id="parent_email" name="email" type="email" dir="ltr" maxlength="254" autocomplete="off"
+                 value="{{ contact.get('email', '') }}">
+        </div>
+        <div class="field">
+          <label for="parent_phone">{{ t('parent.phone_label') }}</label>
+          <input class="input" id="parent_phone" name="phone" type="tel" dir="ltr" maxlength="30" autocomplete="off"
+                 placeholder="{{ t('parent.phone_hint') }}" value="{{ contact.get('phone', '') }}">
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-secondary btn-sm">{{ icon('check', 16) }}<span>{{ t('parent.save_contact') }}</span></button>
+      </div>
+    </form>
+
+    <form class="ps-block ps-compose" method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/students/' ~ student_id ~ '/send-email') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <h3 class="ps-sub">{{ t('parent.msg_title') }}</h3>
+      <p class="help">{{ t('parent.msg_hint') }}</p>
+      <div class="field">
+        <label for="parent-subject">{{ t('parent.msg_subject') }}</label>
+        <input class="input" id="parent-subject" name="subject" type="text" maxlength="200" dir="auto" value="{{ delivery.get('subject', '') }}">
+      </div>
+      <div class="field">
+        <label for="parent-msg">{{ t('parent.msg_title') }}</label>
+        <textarea class="input" id="parent-msg" name="text" rows="10" maxlength="4000" dir="auto" required>{{ delivery.get('text', '') }}</textarea>
+      </div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-primary"
+                {% if not (contact.get('email') and delivery.get('email_ready')) %}disabled{% endif %}>
+          {{ icon('send', 16) }}<span>{{ t('parent.send_email') }}</span></button>
+        {% if contact.get('phone') %}
+        <a class="btn btn-secondary" href="https://wa.me/{{ contact.phone }}?text={{ delivery.get('text', '')|urlencode }}" data-wa-phone="{{ contact.phone }}" target="_blank" rel="noopener noreferrer">
+          {{ icon('send', 16) }}<span>{{ t('parent.send_whatsapp') }}</span></a>
+        {% else %}
+        <button type="button" class="btn btn-secondary" disabled>{{ icon('send', 16) }}<span>{{ t('parent.send_whatsapp') }}</span></button>
+        {% endif %}
+      </div>
+      {% if not contact.get('email') %}<p class="help">{{ t('parent.need_email') }}</p>
+      {% elif not delivery.get('email_ready') %}<p class="help">{{ t('parent.email_off') }}</p>{% endif %}
+      {% if not contact.get('phone') %}<p class="help">{{ t('parent.need_phone') }}</p>
+      {% else %}<p class="help">{{ t('parent.wa_note') }}</p>{% endif %}
+    </form>
+  </section>
   <section class="panel panel-pad">{% with r = report_res.data %}{% include "partials/parent_report_body.html" %}{% endwith %}</section>
 {% else %}
   <section class="panel panel-pad">{{ section_state(t, report_res) }}</section>

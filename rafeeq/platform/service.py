@@ -367,6 +367,19 @@ class PlatformStore:
                     return
         raise NotFound("File not found")
 
+    def replace_file(self, room_id: str, file_id: str, new_path: Path, new_name: str) -> None:
+        """For M2: a PowerPoint was converted to PDF. The PDF becomes the room's file (so citations, the source
+        viewer and downloads all work on pages); the original upload is kept beside it until the file is deleted."""
+        with self._lock:
+            for f in self.db["files"].get(room_id, []):
+                if f["file_id"] == file_id:
+                    f.setdefault("original_path", f["path"])
+                    f.setdefault("original_name", f["name"])
+                    f["path"], f["name"] = str(new_path), Path(new_name).name[:200]
+                    self._save()
+                    return
+        raise NotFound("File not found")
+
     def delete_file(self, user: dict, room_id: str, file_id: str) -> None:
         """Only the room's teacher. Removes the record and the stored file, then tells the delete
         hooks (M2's index). A hook failure is logged in the record list, never undoes the delete."""
@@ -378,10 +391,12 @@ class PlatformStore:
                 raise NotFound("File not found")
             files.remove(record)
             self._save()
-        try:
-            Path(record["path"]).unlink(missing_ok=True)
-        except OSError:
-            pass  # the record is gone; a locked file on Windows can be cleaned up later
+        for stored in (record["path"], record.get("original_path")):
+            try:
+                if stored:
+                    Path(stored).unlink(missing_ok=True)
+            except OSError:
+                pass  # the record is gone; a locked file on Windows can be cleaned up later
         for hook in list(_DELETE_HOOKS):
             try:
                 hook(room_id, file_id)

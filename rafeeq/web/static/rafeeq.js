@@ -29,6 +29,15 @@
     }
   });
 
+  // Parent report: WhatsApp opens with the message exactly as the teacher edited it -------
+  document.addEventListener('click', function (event) {
+    var link = event.target.closest('[data-wa-phone]');
+    if (!link) return;
+    var box = document.getElementById('parent-msg');
+    var text = box ? box.value : '';
+    link.href = 'https://wa.me/' + link.getAttribute('data-wa-phone') + '?text=' + encodeURIComponent(text);
+  });
+
   // File inputs: show the chosen name, keep the photo for the overlay ------------
   document.addEventListener('change', function (event) {
     var el = event.target;

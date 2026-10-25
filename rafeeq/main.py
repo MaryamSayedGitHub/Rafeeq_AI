@@ -36,6 +36,17 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Rafeeq", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def log_unhandled(request: Request, exc: Exception):
+    """The web layer calls this app in-process, which hides tracebacks: print them and say what failed."""
+    import logging
+    from fastapi.responses import JSONResponse
+
+    logging.getLogger("rafeeq").error("Unhandled error on %s %s", request.method, request.url.path, exc_info=exc)
+    return JSONResponse({"detail": f"{type(exc).__name__}: {str(exc)[:160]}"}, status_code=500)
+
 app.add_middleware(IdentityMiddleware)   # M3: who is asking (the Copilot's hook has no user)
 app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
 templates = Jinja2Templates(directory=WEB / "templates")

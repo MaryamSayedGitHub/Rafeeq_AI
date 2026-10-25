@@ -158,7 +158,7 @@ def test_two_uploads_with_the_same_name_in_one_room_get_distinct_citation_names(
 
 def test_a_non_pdf_is_marked_failed_without_loading_anything(tmp_path):
     env = Env(tmp_path)
-    assert env.upload(name="slides.pptx") == 0
+    assert env.upload(name="notes.docx") == 0          # a Word file is not converted: it fails at once
     assert env.statuses == [("r_1", "f_a1", "failed")]
     assert env.embedder.document_calls == []
 
@@ -311,3 +311,35 @@ def test_topic_for_citations_finds_the_topic_of_the_cited_pages(tmp_path):
     assert topic == env.service.room_chunks("r_1")[0]["topic_id"]
     assert env.service.topic_for_citations("r_1", []) is None
     assert env.service.topic_for_citations("r_1", [{"file_name": "other.pdf", "page": 1}]) is None
+
+
+# ---------------------------------------------------------------- PowerPoint uploads are converted to PDF here
+
+def _fake_converter(monkeypatch, fail=None):
+    from rafeeq.knowledge.ingestion import office
+
+    def to_pdf(src, out_dir=None, timeout=None):
+        if fail:
+            raise office.ConversionError(fail)
+        pdf = Path(out_dir or Path(src).parent) / (Path(src).stem + ".pdf")
+        pdf.write_bytes(b"%PDF-1.4 converted")
+        return pdf
+    monkeypatch.setattr(office, "to_pdf", to_pdf)
+
+
+def test_pptx_is_converted_to_pdf_then_indexed_under_the_pdf_name(tmp_path, monkeypatch):
+    _fake_converter(monkeypatch)
+    replaced, indexed = [], []
+    env = Env(tmp_path, replace_callback=lambda room, fid, path, name: replaced.append((room, fid, Path(path).name, name)))
+    monkeypatch.setattr(env.service, "_index", lambda room, fid, path, name: indexed.append((room, fid, Path(path).name, name)) or 3)
+    assert env.upload(file_id="f_p1", name="Lesson 1.pptx") == 3
+    assert replaced == [("r_1", "f_p1", "f_p1__Lesson 1.pdf", "Lesson 1.pdf")]
+    assert indexed == [("r_1", "f_p1", "f_p1__Lesson 1.pdf", "Lesson 1.pdf")]   # a slide is cited as a page of the PDF
+    assert env.statuses == [("r_1", "f_p1", "indexing")]                         # _index reports "ready" itself
+
+
+def test_pptx_that_cannot_be_converted_is_marked_failed(tmp_path, monkeypatch):
+    _fake_converter(monkeypatch, fail="LibreOffice is not installed")
+    env = Env(tmp_path, replace_callback=lambda *a: (_ for _ in ()).throw(AssertionError("must not replace")))
+    assert env.upload(file_id="f_p2", name="deck.pptx") == 0
+    assert env.statuses == [("r_1", "f_p2", "indexing"), ("r_1", "f_p2", "failed")]

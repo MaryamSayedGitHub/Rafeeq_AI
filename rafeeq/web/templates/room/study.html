@@ -6,6 +6,9 @@
     <h1>{{ t('tab.study') }}</h1>
     <p>{{ t('study.intro') }}</p>
   </div>
+  <div class="btn-row">
+    <a class="btn btn-light btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/my-parent') }}">{{ icon('users', 16) }}<span>{{ t('myparent.open') }}</span></a>
+  </div>
 </div>
 
 <div class="study-layout">
