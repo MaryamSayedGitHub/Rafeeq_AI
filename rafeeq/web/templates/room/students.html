@@ -7,6 +7,9 @@
     <h1>{{ t('tab.students') }}</h1>
     <p>{{ t('students.intro') }}</p>
   </div>
+  <div class="btn-row">
+    <a class="btn btn-primary" href="{{ u('/rooms/' ~ room.room_id ~ '/parent-batch') }}">{{ icon('send', 16) }}<span>{{ t('batch.open') }}</span></a>
+  </div>
 </div>
 
 <div class="two-col">
@@ -46,18 +49,19 @@
   <aside class="stack">
     <section class="panel panel-pad">
       <h2 class="panel-title">{{ t('students.at_risk') }}</h2>
-      {% if report_res.ok %}
+      {% if report_res.ok or students_res.ok %}
         {% if at_risk %}
           <ul class="risk-list">
             {% for s in at_risk %}
             <li><span class="mini-avatar tone-red">{{ s.name[:1] }}</span>
               <div><strong>{{ s.name }}</strong>
-                <small>{{ t('students.at_risk.topics', topics=(s.topics | join('، ' if lang == 'ar' else ', '))) }}</small></div></li>
+                {% if s.topics %}<small>{{ t('students.at_risk.topics', topics=(s.topics | join('، ' if lang == 'ar' else ', '))) }}</small>{% endif %}</div></li>
             {% endfor %}
           </ul>
         {% else %}
           <p class="muted">{{ t('students.at_risk.empty') }}</p>
         {% endif %}
+        {% if not report_res.ok %}<p class="help" dir="ltr">{{ t('overview.report_failed') }} (HTTP {{ report_res.status }}{% if report_res.message %}: {{ report_res.message }}{% endif %})</p>{% endif %}
       {% else %}
         {{ section_state(t, report_res) }}
       {% endif %}

@@ -1,0 +1,140 @@
+{% extends "layout.html" %}
+{% from "macros.html" import section_state %}
+{% block title %}{{ t('batch.title') }} · {{ room.name }}{% endblock %}
+{% block content %}
+{% set rid = room.room_id %}
+{% set sm = batch.summary or {} %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('batch.title') }}</h1>
+    <p>{{ t('batch.intro') }}</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-light" href="{{ u('/rooms/' ~ rid ~ '/students') }}">{{ icon('arrow', 16) }}<span>{{ t('parent.back') }}</span></a>
+  </div>
+</div>
+{% if localhost %}<p class="inline-note">{{ icon('info', 16) }}<span>{{ t('parent.localhost_warn') }}</span></p>{% endif %}
+
+<div class="batch-steps">
+  <section class="panel panel-pad batch-step">
+    <h2 class="panel-title">{{ t('batch.step1') }}</h2>
+    <p class="muted">{{ t('batch.step1_help') }}</p>
+    <div class="btn-row batch-dl"><a class="btn btn-light" href="{{ u('/rooms/' ~ rid ~ '/parent-batch/template.xlsx') }}">{{ icon('download', 16) }}<span>{{ t('batch.download') }}</span></a></div>
+    <form class="batch-form" method="post" enctype="multipart/form-data" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/import') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="field">
+        <label for="batch-sheet">{{ t('batch.file') }}</label>
+        <input class="input" id="batch-sheet" name="sheet" type="file" accept=".xlsx,.xlsm,.csv" required>
+      </div>
+      <div class="btn-row"><button class="btn btn-secondary" type="submit">{{ icon('upload', 16) }}<span>{{ t('batch.upload') }}</span></button></div>
+    </form>
+  </section>
+
+  <section class="panel panel-pad batch-step">
+    <h2 class="panel-title">{{ t('batch.step2') }}</h2>
+    <p class="muted">{{ t('batch.step2_help') }}</p>
+    <form class="batch-form" method="post" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/prepare') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="btn-row"><button class="btn btn-primary" type="submit">{{ icon('refresh', 16) }}<span>{{ t('batch.prepare') }}</span></button></div>
+    </form>
+  </section>
+</div>
+
+<section class="panel panel-pad">
+  <h2 class="panel-title">{{ t('batch.step3') }}</h2>
+  {% if not batch_res.ok %}
+    {{ section_state(t, batch_res) }}
+  {% elif not batch.drafts %}
+    <p class="muted">{{ t('batch.none') }}</p>
+  {% else %}
+  <div class="batch-bar">
+    <div class="batch-counts">
+      <span class="badge badge-amber">{{ t('batch.st.pending') }}: {{ sm.pending }}</span>
+      <span class="badge badge-green">{{ t('batch.st.approved') }}: {{ sm.approved }}</span>
+      <span class="badge badge-blue">{{ t('batch.st.skipped') }}: {{ sm.skipped }}</span>
+    </div>
+    <div class="btn-row">
+      <form method="post" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/approve-all') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="btn btn-secondary btn-sm" type="submit" {% if not sm.pending %}disabled{% endif %}>{{ icon('check', 16) }}<span>{{ t('batch.approve_all') }}</span></button>
+      </form>
+      <form method="post" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/send-emails') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <button class="btn btn-primary btn-sm" type="submit" {% if not (batch.email_ready and sm.emails_waiting) %}disabled{% endif %}>{{ icon('send', 16) }}<span>{{ t('batch.send_emails', n=sm.emails_waiting) }}</span></button>
+      </form>
+    </div>
+  </div>
+  {% if not batch.email_ready %}<p class="help">{{ t('batch.email_off') }}</p>{% endif %}
+
+  <ul class="batch-list">
+    {% for d in batch.drafts %}
+    <li class="batch-item" id="draft-{{ d.user_id }}">
+      <div class="batch-head">
+        <div class="batch-who">
+          <span class="mini-avatar">{{ d.name[:1] }}</span>
+          <div>
+            <strong>{{ d.name }}</strong>
+            <small class="muted" dir="ltr">{{ d.email or t('batch.no_email') }} · {{ ('+' ~ d.phone) if d.phone else t('batch.no_phone') }}</small>
+          </div>
+        </div>
+        <div class="batch-flags">
+          {% if d.status == 'approved' %}<span class="badge badge-green">{{ t('batch.st.approved') }}</span>
+          {% elif d.status == 'skipped' %}<span class="badge badge-blue">{{ t('batch.st.skipped') }}</span>
+          {% else %}<span class="badge badge-amber">{{ t('batch.st.pending') }}</span>{% endif %}
+          {% if d.email_sent %}<span class="badge badge-green">{{ t('batch.email_sent') }}</span>{% endif %}
+          {% if d.wa_sent %}<span class="badge badge-green">{{ t('batch.wa_sent') }}</span>{% endif %}
+        </div>
+      </div>
+      {% if d.error %}<p class="field-error">{{ d.error }}</p>{% endif %}
+
+      <details class="batch-edit">
+        <summary>{{ t('batch.edit') }}</summary>
+        <form class="batch-form" method="post" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/' ~ d.user_id ~ '/edit') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <div class="field">
+            <label for="s-{{ d.user_id }}">{{ t('parent.msg_subject') }}</label>
+            <input class="input" id="s-{{ d.user_id }}" name="subject" maxlength="200" dir="auto" value="{{ d.subject }}">
+          </div>
+          <div class="field">
+            <label for="t-{{ d.user_id }}">{{ t('parent.msg_title') }}</label>
+            <textarea class="input" id="t-{{ d.user_id }}" name="text" rows="9" maxlength="4000" dir="auto" required>{{ d.text }}</textarea>
+          </div>
+          <p class="help">{{ t('batch.edit_note') }}</p>
+          <div class="btn-row"><button class="btn btn-light btn-sm" type="submit">{{ t('batch.save_edit') }}</button></div>
+        </form>
+      </details>
+
+      <div class="btn-row batch-actions">
+        {% if d.status != 'approved' %}
+        <form method="post" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/' ~ d.user_id ~ '/status') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="status" value="approved">
+          <button class="btn btn-primary btn-sm" type="submit">{{ icon('check', 16) }}<span>{{ t('batch.approve') }}</span></button>
+        </form>
+        {% endif %}
+        {% if d.status == 'pending' %}
+        <form method="post" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/' ~ d.user_id ~ '/status') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="status" value="skipped">
+          <button class="btn btn-light btn-sm" type="submit">{{ t('batch.skip') }}</button>
+        </form>
+        {% elif d.status != 'pending' %}
+        <form method="post" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/' ~ d.user_id ~ '/status') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="status" value="pending">
+          <button class="btn btn-light btn-sm" type="submit">{{ t('batch.undo') }}</button>
+        </form>
+        {% endif %}
+        {% if d.status == 'approved' and d.phone and not d.wa_sent %}
+        <a class="btn btn-secondary btn-sm" target="_blank" rel="noopener noreferrer"
+           href="https://wa.me/{{ d.phone }}?text={{ d.text|urlencode }}">{{ icon('send', 16) }}<span>{{ t('batch.wa_open') }}</span></a>
+        <form method="post" action="{{ u('/rooms/' ~ rid ~ '/parent-batch/' ~ d.user_id ~ '/wa-done') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <button class="btn btn-light btn-sm" type="submit">{{ icon('check', 16) }}<span>{{ t('batch.wa_done') }}</span></button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  <p class="help">{{ t('batch.wa_note') }}</p>
+  {% endif %}
+</section>
+{% endblock %}

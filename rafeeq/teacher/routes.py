@@ -35,7 +35,7 @@ from rafeeq.samples import load_sample
 from rafeeq.teacher.lecturer.controller import RevisionLimitReached, SessionNotFound, SessionNotWaiting
 from rafeeq.teacher.lecturer.long_term_store import get_profile, list_sessions, load_memory, put_profile
 from rafeeq.teacher import assets as asset_lib
-from rafeeq.teacher import class_report, inbox, parent_report
+from rafeeq.teacher import class_report, inbox, parent_batch, parent_delivery, parent_report
 from rafeeq.teacher.lecturer import video_discovery, video_gen, youtube_discovery
 from rafeeq.teacher.lecturer.schemas import ApproveRequest as Decision
 from rafeeq.teacher.lecturer.schemas import SessionRequest
@@ -518,7 +518,13 @@ def report(svc: Service, room_id: str, authorization: Auth = None):
     from rafeeq.platform.access import room_teacher
 
     room_teacher(authorization, room_id)
-    return class_report.build_report(svc.store, room_id)
+    try:
+        return class_report.build_report(svc.store, room_id)
+    except HTTPException:
+        raise
+    except Exception as e:  # the in-process API swallows tracebacks, so log it and say what failed
+        log.exception("class report failed for room %s", room_id)
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)[:160]}") from e
 
 
 # ------------------------------------------------------------ parent report
@@ -565,6 +571,240 @@ def parent_report_shared(svc: Service, token: str):
     if parsed is None:
         raise HTTPException(404, "This link is invalid or has expired")
     return parent_report.build(svc.store, *parsed)
+
+
+# ------------------------------------------------------------ sending the parent report (email / WhatsApp)
+class ParentContactBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field("", max_length=254)
+    phone: str = Field("", max_length=30)
+
+
+class ParentSendBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    base: str = Field(..., max_length=300, description="Where parents open the report, ending in /p/")
+    subject: str = Field("", max_length=200, description="The teacher's edited subject; empty = the standard one")
+    text: str = Field("", max_length=4000, description="The teacher's edited message; empty = the standard one")
+
+
+def _teacher_student(authorization: str | None, room_id: str, user_id: str) -> None:
+    from rafeeq.platform import service as platform
+
+    _room_teacher(authorization, room_id)
+    if user_id not in platform.get_store().db["members"].get(room_id, []):
+        raise HTTPException(404, "This student is not in the room")
+
+
+def _report_link(base: str, room_id: str, user_id: str) -> str:
+    if not base.startswith(("http://", "https://")) or not base.endswith("/p/"):
+        raise HTTPException(422, "base must be an http(s) address ending in /p/")
+    return base + parent_report.make_share_token(room_id, user_id)
+
+
+@router.get("/teacher/rooms/{room_id}/students/{user_id}/parent-delivery")
+def parent_delivery_api(svc: Service, room_id: str, user_id: str, base: str = Query(..., max_length=300),
+                        authorization: Auth = None):
+    """The parent's saved contact, the message to send, and the ready WhatsApp link."""
+    _teacher_student(authorization, room_id, user_id)
+    contact = parent_delivery.get_contact(svc.store, room_id, user_id)
+    subject, text = parent_delivery.compose(parent_report.build(svc.store, room_id, user_id),
+                                            _report_link(base, room_id, user_id))
+    return {"contact": contact, "email_ready": parent_delivery.email_configured(),
+            "subject": subject, "text": text,
+            "whatsapp_url": parent_delivery.whatsapp_url(contact["phone"], text)}
+
+
+@router.put("/teacher/rooms/{room_id}/students/{user_id}/parent-contact")
+def parent_contact_save(svc: Service, room_id: str, user_id: str, body: ParentContactBody,
+                        authorization: Auth = None):
+    _teacher_student(authorization, room_id, user_id)
+    try:
+        return parent_delivery.save_contact(svc.store, room_id, user_id, body.email, body.phone)
+    except ValueError as e:
+        raise HTTPException(422, "Enter a valid email address" if str(e) == "email" else "Enter a valid phone number")
+
+
+@router.post("/teacher/rooms/{room_id}/students/{user_id}/parent-report/send-email")
+def parent_report_send_email(svc: Service, room_id: str, user_id: str, body: ParentSendBody,
+                             authorization: Auth = None):
+    """Email the weekly report to the parent. Only this room's teacher can do it, one student at a time."""
+    _teacher_student(authorization, room_id, user_id)
+    contact = parent_delivery.get_contact(svc.store, room_id, user_id)
+    if not contact["email"]:
+        raise HTTPException(422, "Save the parent's email first")
+    subject, text = parent_delivery.compose(parent_report.build(svc.store, room_id, user_id),
+                                            _report_link(body.base, room_id, user_id))
+    # The teacher may have rewritten the message on the page: send exactly what they approved.
+    subject, text = body.subject.strip() or subject, body.text.strip() or text
+    try:
+        parent_delivery.send_email(contact["email"], subject, text)
+    except parent_delivery.DeliveryError as e:
+        raise HTTPException(503, str(e))
+    return {"sent": True, "to": contact["email"]}
+
+
+# ------------------------------------------------------------ a student gives their parent's contact
+def _student_in_room(authorization: str | None, room_id: str) -> dict:
+    from rafeeq.platform import service as platform
+
+    user, _ = _room_user(authorization, room_id)
+    if user["user_id"] not in platform.get_store().db["members"].get(room_id, []):
+        raise HTTPException(403, "Only students of this room can do this")
+    return user
+
+
+@router.get("/rooms/{room_id}/my-parent-contact")
+def my_parent_contact(svc: Service, room_id: str, authorization: Auth = None):
+    """The student sees only what they gave. The teacher reads it in the parents' sheet."""
+    user = _student_in_room(authorization, room_id)
+    return parent_delivery.get_contact(svc.store, room_id, user["user_id"])
+
+
+@router.put("/rooms/{room_id}/my-parent-contact")
+def my_parent_contact_save(svc: Service, room_id: str, body: ParentContactBody, authorization: Auth = None):
+    user = _student_in_room(authorization, room_id)
+    try:
+        return parent_delivery.save_contact(svc.store, room_id, user["user_id"], body.email, body.phone)
+    except ValueError as e:
+        raise HTTPException(422, "Enter a valid email address" if str(e) == "email" else "Enter a valid phone number")
+
+
+# ------------------------------------------------------------ all parents at once, after the teacher approves
+class BatchImportBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    filename: str = Field(..., max_length=200)
+    data_b64: str = Field(..., max_length=1_500_000, description="The .xlsx or .csv file, base64")
+
+
+class BatchPrepareBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    base: str = Field(..., max_length=300, description="Where parents open the report, ending in /p/")
+
+
+class BatchEditBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    subject: str = Field("", max_length=200)
+    text: str = Field(..., min_length=1, max_length=4000)
+
+
+class BatchStatusBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    status: Literal["pending", "approved", "skipped"]
+
+
+def _room_students_with_email(room_id: str) -> list[dict]:
+    from rafeeq.platform import service as platform
+
+    db = platform.get_store().db
+    out = []
+    for uid in db["members"].get(room_id, []):
+        u = db["users"].get(uid)
+        if u:
+            out.append({"user_id": uid, "name": u.get("name", ""), "email": u.get("email", "")})
+    return out
+
+
+def _batch_view(svc, room_id: str) -> dict:
+    drafts = parent_batch.list_drafts(svc.store, room_id)
+    names = {s["user_id"]: s["name"] for s in _room_students_with_email(room_id)}
+    items = sorted(drafts.values(), key=lambda d: names.get(d["user_id"], d.get("name", "")))
+    return {"drafts": items, "summary": parent_batch.summary(drafts), "email_ready": parent_delivery.email_configured()}
+
+
+@router.get("/teacher/rooms/{room_id}/parent-batch")
+def parent_batch_api(svc: Service, room_id: str, authorization: Auth = None):
+    _room_teacher(authorization, room_id)
+    return _batch_view(svc, room_id)
+
+
+@router.get("/teacher/rooms/{room_id}/parent-batch/template")
+def parent_batch_template(svc: Service, room_id: str, authorization: Auth = None):
+    """The sheet pre-filled with every student of the room and the parent details saved so far."""
+    from fastapi.responses import Response
+
+    _room_teacher(authorization, room_id)
+    try:
+        data = parent_batch.build_template(svc.store, room_id, _room_students_with_email(room_id))
+    except ImportError:
+        raise HTTPException(503, "Excel support is not installed (uv sync)")
+    return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="rafeeq-parents.xlsx"'})
+
+
+@router.post("/teacher/rooms/{room_id}/parent-batch/import")
+def parent_batch_import(svc: Service, room_id: str, body: BatchImportBody, authorization: Auth = None):
+    """Read the teacher's Excel/CSV sheet and save the parents' email and WhatsApp number for each student."""
+    import base64
+    import binascii
+
+    _room_teacher(authorization, room_id)
+    try:
+        raw = base64.b64decode(body.data_b64, validate=True)
+        rows = parent_batch.parse_sheet(body.filename, raw)
+    except (binascii.Error, ValueError) as e:
+        raise HTTPException(422, {"too_big": "The file is larger than 1 MB", "no_openpyxl": "Excel support is not installed (pip install openpyxl)",
+                                  "bad_file": "This is not a valid Excel file", "bad_type": "Use an .xlsx or .csv file",
+                                  "empty": "The file is empty",
+                                  "columns": "The sheet needs a student column and a parent email or phone column"}.get(str(e), "The file could not be read"))
+    result = parent_batch.import_contacts(svc.store, room_id, _room_students_with_email(room_id), rows)
+    result["unmatched"] = [{"name": u["row"].get("student") or u["row"].get("student_email", ""), "reason": u["reason"]}
+                           for u in result["unmatched"]]
+    result["invalid"] = [{"name": u["row"].get("student", ""), "reason": u["reason"]} for u in result["invalid"]]
+    return result
+
+
+@router.post("/teacher/rooms/{room_id}/parent-batch/prepare")
+def parent_batch_prepare(svc: Service, room_id: str, body: BatchPrepareBody, authorization: Auth = None):
+    """Write one draft per student. Nothing is sent."""
+    _room_teacher(authorization, room_id)
+    _report_link(body.base, room_id, "check")
+    return parent_batch.prepare(
+        svc.store, room_id, _room_students_with_email(room_id),
+        lambda uid: parent_report.build(svc.store, room_id, uid),
+        lambda uid: _report_link(body.base, room_id, uid))
+
+
+@router.put("/teacher/rooms/{room_id}/parent-batch/{user_id}")
+def parent_batch_edit(svc: Service, room_id: str, user_id: str, body: BatchEditBody, authorization: Auth = None):
+    _room_teacher(authorization, room_id)
+    try:
+        return parent_batch.edit_draft(svc.store, room_id, user_id, body.subject, body.text)
+    except parent_batch.DraftError as e:
+        raise HTTPException(404 if str(e) == "not_found" else 422, "Draft not found" if str(e) == "not_found" else "The message is empty")
+
+
+@router.post("/teacher/rooms/{room_id}/parent-batch/{user_id}/status")
+def parent_batch_status(svc: Service, room_id: str, user_id: str, body: BatchStatusBody, authorization: Auth = None):
+    _room_teacher(authorization, room_id)
+    try:
+        return parent_batch.set_status(svc.store, room_id, user_id, body.status)
+    except parent_batch.DraftError:
+        raise HTTPException(404, "Draft not found")
+
+
+@router.post("/teacher/rooms/{room_id}/parent-batch/approve-all")
+def parent_batch_approve_all(svc: Service, room_id: str, authorization: Auth = None):
+    _room_teacher(authorization, room_id)
+    return {"approved": parent_batch.approve_all(svc.store, room_id)}
+
+
+@router.post("/teacher/rooms/{room_id}/parent-batch/send-emails")
+def parent_batch_send_emails(svc: Service, room_id: str, authorization: Auth = None):
+    """Email every approved draft. Drafts the teacher did not approve are never sent."""
+    _room_teacher(authorization, room_id)
+    try:
+        return parent_batch.send_approved_emails(svc.store, room_id)
+    except parent_delivery.DeliveryError as e:
+        raise HTTPException(503, str(e))
+
+
+@router.post("/teacher/rooms/{room_id}/parent-batch/{user_id}/whatsapp-sent")
+def parent_batch_whatsapp_sent(svc: Service, room_id: str, user_id: str, authorization: Auth = None):
+    _room_teacher(authorization, room_id)
+    try:
+        return parent_batch.mark_whatsapp_sent(svc.store, room_id, user_id)
+    except parent_batch.DraftError:
+        raise HTTPException(409, "Approve the message first")
 
 
 # ------------------------------------------------------------ inbox (questions the tutor could not answer)

@@ -1,0 +1,31 @@
+{% extends "layout.html" %}
+{% block title %}{{ t('myparent.title') }} · {{ room.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('myparent.title') }}</h1>
+    <p>{{ t('myparent.intro') }}</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-light" href="{{ u('/rooms/' ~ room.room_id ~ '/study') }}">{{ icon('arrow', 16) }}<span>{{ t('myparent.back') }}</span></a>
+  </div>
+</div>
+<section class="panel panel-pad my-parent">
+  <form class="batch-form" method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/my-parent/save') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="form-grid">
+      <div class="field">
+        <label for="mp_email">{{ t('parent.email_label') }}</label>
+        <input class="input" id="mp_email" name="email" type="email" dir="ltr" maxlength="254" autocomplete="off" value="{{ contact.get('email', '') }}">
+      </div>
+      <div class="field">
+        <label for="mp_phone">{{ t('parent.phone_label') }}</label>
+        <input class="input" id="mp_phone" name="phone" type="tel" dir="ltr" maxlength="30" autocomplete="off"
+               placeholder="{{ t('parent.phone_hint') }}" value="{{ contact.get('phone', '') }}">
+      </div>
+    </div>
+    <p class="inline-note">{{ icon('lock', 16) }}<span>{{ t('myparent.privacy') }}</span></p>
+    <div class="btn-row"><button class="btn btn-primary" type="submit">{{ icon('check', 16) }}<span>{{ t('myparent.save') }}</span></button></div>
+  </form>
+</section>
+{% endblock %}

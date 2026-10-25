@@ -91,6 +91,58 @@ select.input { padding-inline-end: 30px; }
 .check-pill { position: relative; }
 .check-pill span { display: inline-flex; padding: 7px 14px; border: 1px solid var(--line-strong); border-radius: 999px; cursor: pointer; color: var(--muted); font-size: 14px; }
 
+/* ---------------------------------------------------------------- parent report: send panel */
+.parent-send { margin-block-end: 16px; }
+.parent-send .ps-intro { margin: 0 0 16px; }
+.parent-send .ps-block { display: flex; flex-direction: column; gap: 14px; }
+.parent-send .ps-compose { margin-block-start: 20px; padding-block-start: 18px; border-block-start: 1px solid var(--line); }
+.parent-send .ps-sub { margin: 0; font-size: 15px; color: var(--navy); }
+.parent-send textarea.input { min-block-size: 220px; }
+.parent-send .btn:disabled, .parent-send .btn[disabled] { opacity: .5; cursor: not-allowed; }
+@media (max-width: 640px) { .parent-send .form-grid { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- parent batch: import, review, approve */
+.batch-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-block-end: 16px; }
+.batch-step .muted { margin: 0 0 14px; }
+.batch-dl { margin-block-end: 14px; }
+.batch-form { display: flex; flex-direction: column; gap: 14px; }
+.batch-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-block-end: 14px; }
+.batch-counts { display: flex; flex-wrap: wrap; gap: 8px; }
+.batch-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.batch-item { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: #fff; display: flex; flex-direction: column; gap: 12px; }
+.batch-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.batch-who { display: flex; gap: 10px; align-items: center; }
+.batch-who small { display: block; }
+.batch-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.batch-edit summary { cursor: pointer; color: var(--teal-dark); font-weight: 600; font-size: 14px; }
+.batch-edit .batch-form { margin-block-start: 12px; }
+.batch-actions form { margin: 0; }
+.batch-item .btn:disabled, .batch-bar .btn:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 760px) { .batch-steps { grid-template-columns: 1fr; } }
+
+/* ---------------------------------------------------------------- overview charts */
+.chart-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-block-end: 16px; }
+.chart-grid .panel-title { margin-block-end: 14px; }
+.donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.donut { inline-size: 150px; block-size: 150px; transform: rotate(0deg); }
+.donut-ring { stroke: var(--line); }
+.donut-seg { stroke: var(--line-strong); }
+.donut-seg.seg-on_track, .swatch.seg-on_track { stroke: var(--green); background: var(--green); }
+.donut-seg.seg-watch, .swatch.seg-watch { stroke: #d9a441; background: #d9a441; }
+.donut-seg.seg-struggling, .swatch.seg-struggling { stroke: #c9594f; background: #c9594f; }
+.donut-seg.seg-none, .swatch.seg-none { stroke: #c9d3cf; background: #c9d3cf; }
+.donut-num { font-size: 9px; font-weight: 700; fill: var(--navy); }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; inline-size: 100%; }
+.legend li { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.legend li strong { margin-inline-start: auto; }
+.swatch { inline-size: 10px; block-size: 10px; border-radius: 3px; flex: none; }
+.bar-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.bar-rows li { display: grid; grid-template-columns: minmax(70px, 30%) 1fr; gap: 10px; align-items: center; }
+.bar-name { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.meter-fill.tone-blue { background: var(--blue); }
+@media (max-width: 1100px) { .chart-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 700px) { .chart-grid { grid-template-columns: 1fr; } }
+
 /* ---------------------------------------------------------------- badges, notices */
 .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .badge .dot { inline-size: 6px; block-size: 6px; border-radius: 50%; background: currentColor; }

@@ -48,6 +48,62 @@
   {% endfor %}
 </div>
 
+{# 1b. Charts: where the class stands (from the students' real quiz results and questions) #}
+{% if bars %}
+<div class="chart-grid">
+  <section class="panel panel-pad">
+    <h2 class="panel-title">{{ t('overview.chart.levels') }}</h2>
+    {% set total = bars | length %}
+    {% set ns = namespace(offset=0) %}
+    <div class="donut-wrap">
+      <svg class="donut" width="150" height="150" viewBox="0 0 42 42" role="img" aria-label="{{ t('overview.chart.levels') }}">
+        <circle class="donut-ring" cx="21" cy="21" r="15.9155" fill="none" stroke-width="5"/>
+        {% for key in ('on_track', 'watch', 'struggling', 'none') %}
+          {% set pct = (levels[key] * 100 / total) %}
+          {% if pct > 0 %}
+          <circle class="donut-seg seg-{{ key }}" cx="21" cy="21" r="15.9155" fill="none" stroke-width="5"
+                  stroke-dasharray="{{ '%.2f' | format(pct) }} {{ '%.2f' | format(100 - pct) }}"
+                  stroke-dashoffset="{{ '%.2f' | format(25 - ns.offset) }}"/>
+          {% set ns.offset = ns.offset + pct %}
+          {% endif %}
+        {% endfor %}
+        <text x="21" y="22.5" text-anchor="middle" class="donut-num" dir="ltr">{{ total }}</text>
+      </svg>
+      <ul class="legend">
+        {% for key in ('on_track', 'watch', 'struggling', 'none') %}
+        <li><span class="swatch seg-{{ key }}"></span>
+            <span>{{ t('student_status.' ~ key) if key != 'none' else t('students.no_data') }}</span>
+            <strong dir="ltr">{{ levels[key] }}</strong></li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel panel-pad">
+    <h2 class="panel-title">{{ t('overview.chart.mastery') }}</h2>
+    <ul class="bar-rows">
+      {% for b in bars %}
+      <li><span class="bar-name">{{ b.name }}</span>
+        {% if b.mastery is not none %}{{ meter(b.mastery, b.status) }}{% else %}<span class="muted small">{{ t('students.no_data') }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="panel panel-pad">
+    <h2 class="panel-title">{{ t('overview.chart.questions') }}</h2>
+    <ul class="bar-rows">
+      {% for b in bars | sort(attribute='questions', reverse=True) %}
+      <li><span class="bar-name">{{ b.name }}</span>
+        <div class="meter" role="img" aria-label="{{ b.questions }}">
+          <div class="meter-track"><div class="meter-fill tone-blue" style="inline-size: {{ (b.questions * 100 / max_questions) | round | int }}%"></div></div>
+          <span class="meter-value" dir="ltr">{{ b.questions }}</span>
+        </div></li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endif %}
+
 <div class="two-col">
   {# 2. What needs attention #}
   <section class="panel panel-pad">
