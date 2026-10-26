@@ -15,11 +15,11 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from rafeeq.teacher import assets as asset_lib
-from rafeeq.teacher import courses, decks, media_tools, story_video, themes, visuals
+from rafeeq.teacher import courses, decks, media_tools, montage, story_video, themes, visuals
 from rafeeq.teacher.lecturer import image_gen
 from rafeeq.teacher.lecturer.long_term_store import get_profile, list_sessions
 from rafeeq.teacher.routes import Auth, Service, _owner, asset_view
@@ -382,6 +382,106 @@ def speech_api(svc: Service, body: SpeechRequest, authorization: Auth = None):
         asset_lib.update_asset(svc.store, owner, asset["asset_id"], status="failed", error=str(e)[:300])
         raise HTTPException(422 if "Unknown voice" in str(e) or "Write the text" in str(e) else 503, str(e)) from None
     return asset_view(asset_lib.update_asset(svc.store, owner, asset["asset_id"], status="ready", storage_root=root, storage_ref=ref))
+
+
+# ===================================================================== smart montage (a recorded lecture -> a finished video)
+class MontageRequest(BaseModel):
+    """What to do to the video. Every step is optional; at least one must be on."""
+    cut_silence: bool = False
+    captions: bool = False
+    burn_captions: bool = False
+    chapters: bool = False
+    intro: bool = False
+    outro: bool = False
+    title: str = Field(default="", max_length=montage.MAX_TITLE)
+    subtitle: str = Field(default="", max_length=montage.MAX_TITLE)
+    outro_text: str = Field(default="", max_length=montage.MAX_TITLE)
+    music_asset_id: str = Field(default="", max_length=40)
+    # decisions made in the montage editor, on the ORIGINAL video's timeline (None = the team decides)
+    keep: list[list[float]] | None = Field(default=None, max_length=400)
+    segments: list[dict] | None = Field(default=None, max_length=3000)
+    chapter_list: list[dict] | None = Field(default=None, max_length=30)
+    stickers: list[dict] | None = Field(default=None, max_length=montage.MAX_STICKERS * 2)     # GIFs / pictures placed on the timeline
+
+
+def _montage_source(svc, owner: str, asset_id: str) -> tuple[dict, Path]:
+    source = asset_lib.get_asset(svc.store, owner, asset_id)
+    if source is None or source["kind"] not in ("video", "generated_video") or source["status"] != "ready":
+        raise HTTPException(404, "Video not found")
+    path = asset_lib.asset_file(source)
+    if path is None:
+        raise HTTPException(404, "This video has no file yet")
+    return source, path
+
+
+def _media_error(e: Exception) -> HTTPException:
+    return HTTPException(503 if "ffmpeg is not installed" in str(e) else 422, str(e))
+
+
+@router.get("/teacher/media/gifs")
+def montage_gifs_api(q: str = "", authorization: Auth = None):
+    """Search Giphy for the editor (empty q = trending). Needs GIPHY_API_KEY."""
+    _owner(authorization)
+    try:
+        return {"gifs": montage.giphy_search(q)}
+    except media_tools.MediaError as e:
+        raise HTTPException(503 if "GIPHY_API_KEY" in str(e) else 502, str(e)) from None
+
+
+@router.post("/teacher/media/{asset_id}/montage/analyze")
+def montage_analyze_api(svc: Service, asset_id: str, authorization: Auth = None):
+    """For the editor: length, size, sound and where the long pauses are (nothing is changed)."""
+    _, path = _montage_source(svc, _owner(authorization), asset_id)
+    try:
+        return montage.analyze(path)
+    except media_tools.MediaError as e:
+        raise _media_error(e) from None
+
+
+@router.post("/teacher/media/{asset_id}/montage/transcribe")
+def montage_transcribe_api(svc: Service, asset_id: str, authorization: Auth = None):
+    """For the editor: caption lines and suggested chapters of the original video, to be corrected by the teacher."""
+    _, path = _montage_source(svc, _owner(authorization), asset_id)
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            return montage.transcribe_for_editor(path, Path(tmp))
+    except media_tools.MediaError as e:
+        raise _media_error(e) from None
+
+
+@router.post("/teacher/media/{asset_id}/montage", status_code=201)
+def montage_start_api(svc: Service, asset_id: str, body: MontageRequest, authorization: Auth = None):
+    """Start a montage of one of the teacher's videos. Returns the new (pending) library video; poll
+    GET /teacher/montages/{id}. The original video is never changed."""
+    owner = _owner(authorization)
+    source = asset_lib.get_asset(svc.store, owner, asset_id)
+    if source is None or source["kind"] not in ("video", "generated_video") or source["status"] != "ready":
+        raise HTTPException(404, "Video not found")
+    try:
+        started = montage.start(svc.store, owner, source, body.model_dump())
+    except media_tools.MediaError as e:
+        raise HTTPException(503 if "ffmpeg is not installed" in str(e) else 422, str(e)) from None
+    return asset_view(started)
+
+
+@router.get("/teacher/montages/{asset_id}")
+def montage_status_api(svc: Service, asset_id: str, authorization: Auth = None):
+    owner = _owner(authorization)
+    found = montage.view(svc.store, owner, asset_id)
+    if found is None:
+        raise HTTPException(404, "Montage not found")
+    return asset_view(found)
+
+
+@router.get("/teacher/montages/{asset_id}/captions.srt")
+def montage_captions_api(svc: Service, asset_id: str, authorization: Auth = None):
+    owner = _owner(authorization)
+    found = montage.view(svc.store, owner, asset_id)
+    srt = ((found or {}).get("settings") or {}).get("montage", {}).get("srt", "")
+    if not srt:
+        raise HTTPException(404, "This video has no captions")
+    return PlainTextResponse(srt, media_type="text/plain; charset=utf-8",
+                             headers={"Content-Disposition": 'attachment; filename="captions.srt"'})
 
 
 # ===================================================================== story videos (about 30 s, several scenes)
