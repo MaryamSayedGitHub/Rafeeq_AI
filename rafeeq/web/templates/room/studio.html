@@ -50,10 +50,26 @@
       <fieldset class="field">
         <legend>{{ t('studio.needs') }}</legend>
         <div class="check-row">
-          {% for n in ('slides', 'quiz', 'code') %}
-          <label class="check-pill"><input type="checkbox" name="needs" value="{{ n }}" {% if n in ('slides', 'quiz') %}checked{% endif %} {% if n == 'code' %}data-toggles="#code-lang"{% endif %}><span>{{ t('need.' ~ n) }}</span></label>
+          {% for n in ('slides', 'quiz', 'code', 'montage') %}
+          <label class="check-pill"><input type="checkbox" name="needs" value="{{ n }}" {% if n in ('slides', 'quiz') %}checked{% endif %} {% if n == 'code' %}data-toggles="#code-lang"{% elif n == 'montage' %}data-toggles="#montage-fields"{% endif %}><span>{{ t('need.' ~ n) }}</span></label>
           {% endfor %}
         </div>
+      </fieldset>
+      <fieldset class="field" id="montage-fields" hidden>
+        {% if videos %}
+        <label for="video_asset_id">{{ t('studio.video') }}</label>
+        <select class="input" id="video_asset_id" name="video_asset_id">
+          {% for v in videos %}<option value="{{ v.asset_id }}">{{ v.title }}</option>{% endfor %}
+        </select>
+        <div class="check-row">
+          {% for k in ('cut_silence', 'captions', 'burn_captions', 'chapters', 'intro', 'outro') %}
+          <label class="check-pill"><input type="checkbox" name="montage_step" value="{{ k }}" {% if k != 'burn_captions' %}checked{% endif %}><span>{{ t('montage.' ~ ('intro_card' if k == 'intro' else 'outro_card' if k == 'outro' else 'burn' if k == 'burn_captions' else k)) }}</span></label>
+          {% endfor %}
+        </div>
+        <p class="help">{{ t('studio.video_help') }}</p>
+        {% else %}
+        <p class="help">{{ t('studio.video_none') }}</p>
+        {% endif %}
       </fieldset>
       <div class="form-grid">
         <div class="field">

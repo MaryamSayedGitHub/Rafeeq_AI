@@ -11,7 +11,7 @@ from urllib.parse import quote
 
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, PlainTextResponse, Response
 
 from rafeeq.web import api as A
 from rafeeq.web.common import (api, api_message, check_csrf, flash, lang_of, notice, redirect, render, require_user, tr, url as u)
@@ -155,7 +155,8 @@ async def media_page(request: Request):
     selected = next((a for a in items if a["asset_id"] == selected_id), None)
     if selected is None and selected_id:
         selected = next((a for a in assets_res.get("assets", []) if a["asset_id"] == selected_id and a["kind"] in MEDIA_KINDS), None)
-    return page(request, "studios/media.html", "media", proj, res=assets_res, items=items, selected=selected,
+    music = [a for a in assets_res.get("assets", []) if a["kind"] == "audio" and a["status"] == "ready"]
+    return page(request, "studios/media.html", "media", proj, res=assets_res, items=items, selected=selected, music=music,
                 caps=caps_res.data if caps_res.ok else {}, caps_ok=caps_res.ok)
 
 
@@ -293,6 +294,99 @@ async def media_video_status(request: Request):
     return render(request, "partials/video_job.html", poll_base="/media/video/generate/", task_id=task_id, job=job,
                   used_avatar=False, prompt=request.query_params.get("prompt", "")[:800], saved=saved,
                   edit_url=u(request, "/media", asset=job["asset_id"]) if saved else "")
+
+
+# ------------------------------------------------------------------ Smart montage of a recorded lecture
+async def montage_start(request: Request):
+    user = require_user(request, "teacher")
+    form = await check_csrf(request)
+    asset_id = request.path_params.get("asset_id") or str(form.get("video_asset_id", ""))[:40]
+    if not asset_id:
+        return notice(request, tr(request, "studio.video_none"), "warning")
+    body = {name: bool(form.get(name)) for name in ("cut_silence", "captions", "burn_captions", "chapters", "intro", "outro")}
+    body.update({"title": str(form.get("title", "")).strip()[:120], "subtitle": str(form.get("subtitle", "")).strip()[:120],
+                 "outro_text": str(form.get("outro_text", "")).strip()[:120],
+                 "music_asset_id": str(form.get("music_asset_id", ""))[:40] if form.get("music") else ""})
+    if not any(body[k] for k in ("cut_silence", "captions", "chapters", "intro", "outro")) and not body["music_asset_id"]:
+        return notice(request, tr(request, "montage.pick_one"), "warning")
+    if body["intro"] and not body["title"]:
+        return notice(request, tr(request, "montage.need_title"), "warning")
+    res = await api(request).post(f"/teacher/media/{quote(asset_id, safe='')}/montage", token=user["token"], json=body, timeout=60)
+    ensure_session(request, res)
+    if not res.ok:
+        key = "media.no_ffmpeg" if res.status == 503 and "ffmpeg" in (res.message or "") else None
+        return notice(request, tr(request, key) if key else (res.message or api_message(request, res)), "warning")
+    return render(request, "partials/montage_job.html", job=res.data)
+
+
+async def montage_status(request: Request):
+    user = require_user(request, "teacher")
+    res = await api(request).get(f"/teacher/montages/{quote(request.path_params['asset_id'], safe='')}", token=user["token"], timeout=30)
+    ensure_session(request, res)
+    if not res.ok:
+        return notice(request, api_message(request, res), "warning")
+    return render(request, "partials/montage_job.html", job=res.data)
+
+
+async def montage_captions(request: Request):
+    user = require_user(request, "teacher")
+    res = await api(request).get(f"/teacher/montages/{quote(request.path_params['asset_id'], safe='')}", token=user["token"], timeout=30)
+    srt = ((res.data or {}).get("settings") or {}).get("montage", {}).get("srt", "") if res.ok else ""
+    if not srt:
+        raise HTTPException(status_code=404, detail="captions")
+    return PlainTextResponse(srt, media_type="text/plain; charset=utf-8",
+                             headers={"Content-Disposition": 'attachment; filename="captions.srt"'})
+
+
+# ------------------------------------------------------------------ montage editor (live preview, then the agents render it)
+async def montage_editor_page(request: Request):
+    user = require_user(request, "teacher")
+    asset_id = request.path_params["asset_id"]
+    proj = await project(request, user)
+    asset_res, assets_res, caps_res = await gather(
+        api(request).get(f"/teacher/assets/{quote(asset_id, safe='')}", token=user["token"]),
+        _assets(request, user), api(request).get("/teacher/media/capabilities", token=user["token"]))
+    ensure_session(request, asset_res)
+    asset = asset_res.data if asset_res.ok else None
+    if not asset or asset.get("kind") not in ("video", "generated_video") or asset.get("status") != "ready" or not asset.get("file_url"):
+        flash(request, "warning", tr(request, "editor.no_video"))
+        return redirect(request, "/media")
+    music = [a for a in assets_res.get("assets", []) if a["kind"] == "audio" and a["status"] == "ready"]
+    pictures = [a for a in assets_res.get("assets", []) if a["kind"] == "image" and a["status"] == "ready"]
+    return page(request, "studios/montage_editor.html", "media", proj, asset=asset, music=music, pictures=pictures,
+                caps=caps_res.data if caps_res.ok else {})
+
+
+async def montage_editor_api(request: Request):
+    """The editor's calls (JSON in, JSON out): analyze (pauses), transcribe (captions + chapters), gifs (Giphy search), render."""
+    user = require_user(request, "teacher")
+    await check_csrf(request)
+    asset_id, action = quote(request.path_params["asset_id"], safe=""), request.path_params["action"]
+    base = f"/teacher/media/{asset_id}/montage"
+    if action in ("analyze", "transcribe"):
+        res = await api(request).post(f"{base}/{action}", token=user["token"], timeout=300)
+    elif action == "gifs":
+        try:
+            q = str((await request.json()).get("q", ""))[:80]
+        except (ValueError, AttributeError):
+            q = ""
+        res = await api(request).get("/teacher/media/gifs", token=user["token"], params={"q": q}, timeout=30)
+    elif action == "render":
+        try:
+            body = await request.json()
+        except ValueError:
+            return JSONResponse({"error": tr(request, "err.invalid")}, status_code=400)
+        res = await api(request).post(base, token=user["token"], json=body, timeout=60)
+    else:
+        raise HTTPException(status_code=404, detail="action")
+    ensure_session(request, res)
+    if not res.ok:
+        key = "media.no_ffmpeg" if res.status == 503 and "ffmpeg" in (res.message or "") else None
+        text = tr(request, key) if key else (res.message or api_message(request, res))
+        return JSONResponse({"error": text}, status_code=res.status if 400 <= res.status < 600 else 502)
+    if action == "render":
+        return render(request, "partials/montage_job.html", job=res.data)
+    return JSONResponse(res.data)
 
 
 # ------------------------------------------------------------------ Story video (several scenes, about 30 s)
