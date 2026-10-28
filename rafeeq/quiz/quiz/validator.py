@@ -21,6 +21,10 @@ CONTEXT_PHRASES = re.compile(
 )
 
 
+# "(Note: token is 'Paris')" - the writer correcting itself inside the answer key
+NOTE_TO_SELF = re.compile(r"\(\s*note\b|\bnote\s*:|ملاحظة\s*:", re.IGNORECASE)
+
+
 def _norm(text: str) -> str:
     return " ".join(text.lower().split())
 
@@ -40,6 +44,8 @@ def _check_typed(item: QuizItem) -> list[str]:
         if not model_answer_parses(answer):
             problems.append("the model answer is not a plain expression or equation a computer can read "
                             "(write x^2 + 1, sqrt(2), 1/2, x = 3; no words or LaTeX)")
+        elif not re.search(r"\d", answer):
+            problems.append("a maths answer is a number or an expression with numbers, not a word or a name")
     elif item.kind in ("essay", "problem"):
         if not 2 <= len(item.rubric) <= 6:
             problems.append("the rubric needs 3 to 5 points")
@@ -47,6 +53,8 @@ def _check_typed(item: QuizItem) -> list[str]:
             problems.append("two rubric points are the same")
         if len(answer) < 40:
             problems.append("the model answer is too short")
+        if NOTE_TO_SELF.search(answer):
+            problems.append("the model answer contains a note or correction to yourself; write only the clean final solution")
     return problems
 
 

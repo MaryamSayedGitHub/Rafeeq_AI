@@ -181,3 +181,44 @@ def test_a_quiz_with_typed_questions_prints_as_questions_with_writing_lines():
     assert "### 1." in md and "A) a" in md and "True" in md
     assert md.count("." * 72) >= 13                      # the essay gets about a page of lines
     assert questions_path("quiz-1") != sheet_path("quiz-1")
+
+
+# ---------------------------------------------------------------- stricter generation of maths and problems
+def test_the_maths_prompt_no_longer_asks_for_a_calculation_when_there_is_no_maths():
+    from rafeeq.quiz.quiz.generator import build_prompt
+    p = build_prompt(chunk(), kind="math")
+    assert "make a short calculation" not in p and '"skip": true' in p and "lookup" in p
+
+
+def test_the_problem_prompt_forbids_library_guesses_and_notes_to_yourself():
+    from rafeeq.quiz.quiz.generator import build_prompt
+    p = build_prompt(chunk(), kind="problem")
+    assert "library" in p and "no notes, corrections" in p
+
+
+def test_a_model_that_says_skip_is_not_asked_again_and_the_quiz_falls_back_to_mcq():
+    from rafeeq.quiz.quiz.generator import generate_item
+    calls = []
+
+    def llm(prompt):
+        calls.append(prompt)
+        return json.dumps(MCQ) if "multiple-choice" in prompt else json.dumps({"skip": True})
+    item_, first = generate_item(llm, chunk(), "q1", kind="math")
+    assert item_ is None and first is False and len(calls) == 1          # one call, no retry
+    calls.clear()
+    result = generate_quiz(llm, [chunk(p) for p in range(1, 5)], 2, kinds=["math"], rng=random.Random(1))
+    assert len(result.items) == 2 and {i.kind for i in result.items} == {"mcq"}
+
+
+def test_a_maths_answer_that_is_a_word_is_rejected_but_numbers_and_equations_pass():
+    pytest.importorskip("sympy")
+    assert any("not a word" in p for p in check_item(item("math", answer="I-ORG")))
+    assert check_item(item("math", answer="10500")) == []
+    assert check_item(item("math", answer="x = 3 or x = -2")) == []
+
+
+def test_an_answer_key_with_a_note_to_itself_is_rejected():
+    bad = item("problem", answer="The entity is 'Parise' (Note: token is 'Paris') and the type is Location.",
+               rubric=["a", "b", "c"])
+    assert any("note or correction" in p for p in check_item(bad))
+    assert check_item(item("problem", answer="The entity is 'Paris' and the type is Location. " * 2, rubric=["a", "b", "c"])) == []
