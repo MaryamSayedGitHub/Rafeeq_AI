@@ -20,6 +20,8 @@ from rafeeq.quiz.quiz.validator import check_item
 
 LLM = Callable[[str], str]
 
+SKIPPED = "skipped: the page has nothing this question type fits"   # the model said {"skip": true}: do not retry
+
 # Book sections that are not teachable content (used for the dev book).
 DEFAULT_SKIP_TOPICS = frozenset(
     {"front-matter", "preface", "afterword", "index", "about-the-authors"}
@@ -44,13 +46,23 @@ _TYPED_RULES = {
         "a MATHS question",
         "The answer is ONE expression, number or equation that can be checked by a computer, for example "
         "'x = 3', '2x + 5', '12.5' or 'x = 2 or x = -3'. Write the question in plain text, not LaTeX "
-        "(use x^2, sqrt(x), 1/2). If the text has no maths, make a short calculation about its quantities or formulas. "
+        "(use x^2, sqrt(x), 1/2). "
+        "Only write it when the text has a formula, an equation, or real quantities that need a calculation of at least two steps. "
+        "Every number the student needs must be in the question. Do NOT multiply or add settings, sizes or parameters taken from code, "
+        "and do NOT ask what number a label, a dictionary or a table gives (that is a lookup, not maths). "
+        "The answer is a number or an algebraic expression, never a word or a name. "
+        'If the text has no real maths, reply with exactly {"skip": true} and nothing else. '
         'Put the answer in "answer" in the same plain syntax a student would type.',
         '{"stem": str, "answer": the final expression or equation, "explanation": the key steps in two or three sentences}',
     ),
     "problem": (
         "a PROBLEM to solve (several steps, not a quiz question you can answer in one line)",
-        "Give the data in the question. The student must show the steps and a final answer. "
+        "Give all the data in the question. The student must show the steps and a final answer. "
+        "Use only facts the text states: do not rely on how a library, a function or a program behaves unless the text says so, "
+        "and do not ask the student to count things that depend on a library's internals. "
+        "If the text shows a real example with data, use that data instead of inventing a new one. "
+        "Solve it carefully and check the final answer before you write it. The worked solution must be clean: "
+        "no notes, corrections or remarks to yourself inside it. "
         'The rubric has 3 to 5 points: the key steps and the final answer with its unit. Write the question in plain text, not LaTeX.',
         '{"stem": str, "answer": the full worked solution, "rubric": [3 to 5 strings], "explanation": str}',
     ),
@@ -147,6 +159,8 @@ def _try_build(raw: str, chunk: dict, item_id: str, kind: str = "mcq") -> tuple[
     data = _parse_json(raw)
     if data is None:
         return None, ["the reply was not valid JSON"]
+    if kind != "mcq" and data.get("skip") is True:
+        return None, [SKIPPED]
     try:
         # topic, file and page always come from the chunk, never from the LLM
         common = dict(
@@ -230,6 +244,8 @@ def generate_item(
     problems: list[str] = []
     for attempt in range(2):
         item, problems = _try_build(llm(build_prompt(chunk, problems or None, avoid, kind)), chunk, item_id, kind)
+        if problems == [SKIPPED]:        # the page has no maths (say): a second try would only invent some
+            return None, False
         if item is not None and not problems and verifier is not None and kind == "mcq":
             ok, why = verify_item(verifier, chunk, item)
             if not ok:
