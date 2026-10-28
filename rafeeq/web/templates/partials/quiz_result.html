@@ -21,7 +21,8 @@
     {% for r in rows %}
     <li>
       <strong>{{ r.q }}</strong>
-      <span class="muted">{{ t('practice.your_answer', a=r.a) }}</span>
+      <span class="muted" dir="auto" style="white-space: pre-wrap">{{ t('practice.your_answer', a=r.a) }}</span>
+      {% if r.k not in ('mcq', 'true_false') %}<span class="delta {{ 'up' if r.s >= 0.7 else 'down' if r.s == 0 else '' }}" dir="ltr">{{ t('practice.marks', p=(r.s * 100) | round | int) }}</span>{% endif %}
       {% if r.e %}<p>{{ r.e }}</p>{% endif %}
     </li>
     {% endfor %}

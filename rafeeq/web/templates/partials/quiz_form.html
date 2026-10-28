@@ -15,18 +15,35 @@
     <fieldset class="quiz-q{% if qi in flagged %} quiz-q-flagged{% endif %}">
       <legend><span class="quiz-n">{{ t('practice.question_n', n=loop.index) }}</span>{{ q.text }}{% if qi in flagged %} <small class="muted">· {{ t('practice.paper.check_this') }}</small>{% endif %}</legend>
       <input type="hidden" name="q_{{ qi }}" value="{{ q.text }}">
+      <input type="hidden" name="k_{{ qi }}" value="{{ q.kind or 'mcq' }}">
+      {% set kind = q.kind or 'mcq' %}
+      {% if kind in ('mcq', 'true_false') %}
       <div class="choices">
         {% for c in q.choices %}
         <label class="choice"><input type="radio" name="a_{{ qi }}" value="{{ c }}" required {% if picked[qi] is defined and picked[qi] == c %}checked{% endif %}><span dir="auto">{{ c }}</span></label>
         {% endfor %}
       </div>
+      {% elif kind == 'math' %}
+      <input class="input" type="text" name="a_{{ qi }}" dir="ltr" autocomplete="off" spellcheck="false" maxlength="120" required
+             placeholder="{{ t('practice.type_here') }}" aria-label="{{ t('kind.math') }}">
+      <p class="muted"><small>{{ t('practice.math_hint') }}</small></p>
+      {% elif kind == 'short' %}
+      <input class="input" type="text" name="a_{{ qi }}" dir="auto" autocomplete="off" maxlength="200" required
+             placeholder="{{ t('practice.type_here') }}" aria-label="{{ t('kind.short') }}">
+      {% else %}
+      <textarea class="input" name="a_{{ qi }}" dir="auto" rows="{{ 8 if kind == 'essay' else 6 }}" maxlength="4000" required
+                placeholder="{{ t('practice.type_here') }}" aria-label="{{ t('kind.' ~ kind) }}"></textarea>
+      <p class="muted"><small>{{ t('practice.essay_hint' if kind == 'essay' else 'practice.problem_hint') }}</small></p>
+      {% endif %}
     </fieldset>
     {% endfor %}
     <button class="btn btn-primary" type="submit">{{ t('practice.submit') }}</button>
   </form>
 
-  {# On paper: print the quiz, solve it, photograph the answer sheet. #}
-  {% set ns = namespace(items=[]) %}
+  {# On paper: print the quiz, solve it, photograph the answer sheet. Bubbles only hold mcq, so it is offered for all-mcq quizzes. #}
+  {% set ns = namespace(items=[], all_mcq=true) %}
+  {% for q in quiz.questions %}{% if (q.kind or 'mcq') != 'mcq' %}{% set ns.all_mcq = false %}{% endif %}{% endfor %}
+  {% if ns.all_mcq %}
   {% for q in quiz.questions %}{% set ns.items = ns.items + [{'text': q.text, 'choices': q.choices}] %}{% endfor %}
   <section class="panel panel-pad">
     <h3 class="panel-title">{{ t('practice.paper.title') }}</h3>
@@ -46,4 +63,12 @@
     </form>
     <div class="htmx-indicator inline-loading" id="grade-indicator"><span class="spinner"></span>{{ t('practice.paper.grading') }}</div>
   </section>
+  {% else %}
+  <section class="panel panel-pad">
+    <p class="muted">{{ t('practice.pdf.help') }}</p>
+    <div class="btn-row">
+      <a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/practice/' ~ quiz.quiz_id ~ '/sheet.pdf') }}">{{ icon('download', 16) }}<span>{{ t('practice.paper.download') }}</span></a>
+    </div>
+  </section>
+  {% endif %}
 </div>

@@ -226,8 +226,9 @@ async def practice_quiz(request: Request):
         count = min(10, max(3, int(form.get("count", 5))))
     except ValueError:
         count = 5
-    res = await api(request).post("/quiz", token=user["token"], timeout=120,
-                                  json={"room_id": room["room_id"], "topic_id": topic_id, "count": count})
+    kinds = [k for k in form.getlist("kinds") if k in ("mcq", "true_false", "short", "math", "problem", "essay")] or ["mcq"]
+    res = await api(request).post("/quiz", token=user["token"], timeout=180,
+                                  json={"room_id": room["room_id"], "topic_id": topic_id, "count": count, "kinds": kinds})
     ensure_session(request, res)
     if not res.ok:
         return notice(request, api_message(request, res), "warning")
@@ -244,21 +245,26 @@ async def practice_submit(request: Request):
         return notice(request, tr(request, "err.generic"), "warning")
     answers = [str(form.get(f"a_{i}", "")) for i in range(n)]
     questions = [str(form.get(f"q_{i}", "")) for i in range(n)]
-    if any(not a for a in answers):
+    kinds = [str(form.get(f"k_{i}", "mcq")) for i in range(n)]
+    if any(not a.strip() for a in answers):
         return notice(request, tr(request, "practice.answer_all"), "warning")
-    return await _submit_quiz(request, user, room, quiz_id, answers, questions, str(form.get("topic_id", "")))
+    return await _submit_quiz(request, user, room, quiz_id, answers, questions, str(form.get("topic_id", "")), kinds)
 
 
-async def _submit_quiz(request: Request, user: dict, room: dict, quiz_id: str, answers: list[str], questions: list[str], topic_id: str):
+async def _submit_quiz(request: Request, user: dict, room: dict, quiz_id: str, answers: list[str], questions: list[str], topic_id: str,
+                       kinds: list[str] | None = None):
     n = len(answers)
     res, (_, names) = await gather(
-        api(request).post(f"/quiz/{quiz_id}/submit", token=user["token"], json={"answers": answers}),
+        api(request).post(f"/quiz/{quiz_id}/submit", token=user["token"], json={"answers": answers}, timeout=180),
         topic_names(request, user, room["room_id"]),
     )
     ensure_session(request, res)
     if not res.ok:
         return notice(request, api_message(request, res), "warning")
-    rows = [{"q": q, "a": a, "e": e} for q, a, e in zip(questions, answers, res.data.get("explanations", []) + [""] * n)]
+    kinds = (kinds or []) + ["mcq"] * n
+    scores = (res.data.get("item_scores") or []) + [0.0] * n
+    rows = [{"q": q, "a": a, "e": e, "k": k, "s": s_}
+            for q, a, e, k, s_ in zip(questions, answers, res.data.get("explanations", []) + [""] * n, kinds, scores)]
     return render(request, "partials/quiz_result.html", room=room, result=res.data, rows=rows,
                   topic_names=names, topic_id=topic_id, quiz_id=quiz_id)
 

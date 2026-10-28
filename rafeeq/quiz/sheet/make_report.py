@@ -37,7 +37,22 @@ def _load(path: str) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8-sig"))
 
 
-def _status(item: dict, choice) -> tuple[str, tuple]:
+PASS_MARK = 0.7   # same as rafeeq.quiz.quiz.grading.PASS_MARK
+
+
+def _is_typed(item: dict) -> bool:
+    return item.get("kind", "mcq") not in ("mcq", "true_false")
+
+
+def _status(item: dict, choice, score: float | None = None) -> tuple[str, tuple]:
+    if _is_typed(item):   # typed answers can earn part of the marks
+        if score is None:
+            return "Needs review (not graded)", AMBER
+        if score >= PASS_MARK:
+            return f"Correct ({round(score * 100)}%)", GREEN
+        if score > 0:
+            return f"Partly right ({round(score * 100)}%)", AMBER
+        return "Wrong", RED
     if choice is None:
         return "Needs review (blank or two marks)", AMBER
     if choice == item["right_choice"]:
@@ -45,12 +60,38 @@ def _status(item: dict, choice) -> tuple[str, tuple]:
     return "Wrong", RED
 
 
+def _is_right(item: dict, choice, score: float | None) -> bool:
+    if _is_typed(item):
+        return score is not None and score >= PASS_MARK
+    return choice == item["right_choice"]
+
+
 def build_report(quiz: dict, result: dict, out_path: str | Path) -> Path:
+    """The coloured report (styled_pdf.report_pdf: every question type, Arabic too). If it cannot be made
+    (no Unicode font, a layout bug) the plain Latin report below is written instead."""
+    try:
+        from rafeeq.quiz.sheet.styled_pdf import report_pdf
+
+        data = report_pdf(quiz, result)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("styled score report failed, writing the plain one", exc_info=True)
+        return _build_plain_report(quiz, result, out_path)
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_bytes(data)
+    return out
+
+
+def _build_plain_report(quiz: dict, result: dict, out_path: str | Path) -> Path:
     fitz = _fitz()
     items = quiz["items"]
     picked = {a["item_id"]: a.get("choice") for a in result["answers"]}
-    right = sum(1 for it in items if picked.get(it["item_id"]) == it["right_choice"])
-    review = sum(1 for it in items if picked.get(it["item_id"]) is None)
+    typed_text = {a["item_id"]: a.get("text", "") for a in result["answers"]}
+    typed_score = {a["item_id"]: a.get("score") for a in result["answers"]}
+    right = sum(1 for it in items if _is_right(it, picked.get(it["item_id"]), typed_score.get(it["item_id"])))
+    review = sum(1 for it in items if (typed_score.get(it["item_id"]) is None if _is_typed(it) else picked.get(it["item_id"]) is None))
 
     reg, bold = fitz.Font("helv"), fitz.Font("hebo")
     width = L.PAGE_W - 2 * MARGIN
@@ -90,11 +131,16 @@ def build_report(quiz: dict, result: dict, out_path: str | Path) -> Path:
 
     for i, item in enumerate(items):
         choice = picked.get(item["item_id"])
-        label, color = _status(item, choice)
+        label, color = _status(item, choice, typed_score.get(item["item_id"]))
         stem = wrap(f"{i + 1}. {item['stem']}", 10.5, width - 12, True)
-        mine = "no answer" if choice is None else f"{LETTERS[choice]}) {item['options'][choice]}"
-        mine_l = wrap(f"Your answer: {mine}", 9.5, width - 12)
-        ok_l = wrap(f"Correct answer: {LETTERS[item['right_choice']]}) {item['options'][item['right_choice']]}", 9.5, width - 12)
+        if _is_typed(item):
+            mine = typed_text.get(item["item_id"]) or "no answer"
+            mine_l = wrap(f"Your answer: {mine}", 9.5, width - 12)[:6]
+            ok_l = wrap(f"Model answer: {item.get('answer', '')}", 9.5, width - 12)[:6]
+        else:
+            mine = "no answer" if choice is None else f"{LETTERS[choice]}) {item['options'][choice]}"
+            mine_l = wrap(f"Your answer: {mine}", 9.5, width - 12)
+            ok_l = wrap(f"Correct answer: {LETTERS[item['right_choice']]}) {item['options'][item['right_choice']]}", 9.5, width - 12)
         why_l = wrap(f"Why: {item['explanation']}", 9, width - 12)
         src = f"Source: {item['file_name']}, page {item['page']}"
         n_lines = 1 + len(stem) + len(mine_l) + len(ok_l) + len(why_l) + 1
