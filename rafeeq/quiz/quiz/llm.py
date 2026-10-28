@@ -12,7 +12,7 @@ load_dotenv()
 
 DEFAULT_MODELS = {"openai": "gpt-4o-mini", "gemini": "gemini-3.5-flash-lite"}
 
-TRANSIENT = ("503", "UNAVAILABLE", "overloaded", "high demand")
+TRANSIENT = ("503", "UNAVAILABLE", "overloaded", "high demand", "timed out", "Timeout", "Connection", "Network")
 RATE_LIMIT = ("429", "RESOURCE_EXHAUSTED", "rate limit")
 NO_RETRY = ("insufficient_quota", "no credits")  # billing problems: waiting won't help
 

@@ -41,6 +41,15 @@ def get_llm():
         raise HTTPException(status_code=503, detail=f"quiz generation is not configured: {exc}") from None
 
 
+def get_grader_llm():
+    """The model that grades typed answers (short, essay, problem). Unlike get_llm it never raises: with no model
+    configured, mcq and maths answers are still graded and the other typed answers are marked needs_review."""
+    try:
+        return _llm()
+    except RuntimeError:
+        return None
+
+
 @lru_cache
 def _chunks() -> list[dict]:
     """Development stand-in: one book, used only when M2's knowledge base is off."""

@@ -39,6 +39,7 @@ Steps 3 to 6 repeat every week.
 - **Ask**: a tutor that answers only from the room's own material, with page citations, in Arabic or English. If the answer is not in the material it says so.
 - **Snap & Ask**: photograph a question or your own worked solution; a vision-language model reads it and the tutor answers or checks it.
 - **Quiz**: generated per topic, graded automatically, feeding back into the student's profile.
+  Question types: multiple choice, true/false, short answer, maths (equations are checked by value with sympy), problems and essays (graded by the LLM against a rubric, with partial marks). The student picks the types on the Practice page; the API takes `kinds` in `POST /quiz`. Paper quizzes stay multiple choice.
 - **My plan**: a "what to do next" suggestion based on weak topics.
 - **Rooms**: a course room per teacher, with student uploads and (proposed) a personal study room with no teacher.
 - **Teacher dashboard**: class-wide insights, a per-topic report, and an assistant that drafts replies for approval.

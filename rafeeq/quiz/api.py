@@ -1,4 +1,5 @@
 """M4 router. M1 mounts it; role checks come from M1 (stubbed here)."""
+import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
@@ -16,7 +17,7 @@ from rafeeq.quiz.contracts import (
     SubmitResponse,
     WrongAnswerRow,
 )
-from rafeeq.quiz.deps import current_user_id, get_approved_items, get_chunks, get_llm, get_room_chunks, get_verifier, material
+from rafeeq.quiz.deps import current_user_id, get_approved_items, get_chunks, get_grader_llm, get_llm, get_room_chunks, get_verifier, material
 from rafeeq.quiz.profile import service
 from rafeeq.quiz.profile.db import get_session
 from rafeeq.quiz.quiz import service as quiz_service
@@ -92,11 +93,14 @@ def create_quiz(
             approved_items=approved,
             topic_id=req.topic_id,
             verifier=verifier,
+            kinds=tuple(req.kinds),
         )
     except quiz_service.TopicNotFound:
         raise HTTPException(status_code=404, detail="topic not found in this course")
     except quiz_service.QuizGenerationError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+    except (httpx.HTTPError, RuntimeError) as exc:   # the model could not be reached (timeout, rate limit, bad key)
+        raise HTTPException(status_code=503, detail=f"the quiz model could not be reached, try again: {str(exc)[:120]}")
 
 
 @router.post("/quizzes/{quiz_id}/submit", response_model=SubmitResponse)
@@ -105,10 +109,11 @@ def submit(
     req: SubmitRequest,
     session: Session = Depends(get_session),
     user_id: str = Depends(current_user_id),
+    grader_llm=Depends(get_grader_llm),
 ):
     try:
         return quiz_service.submit_quiz(
-            session, quiz_id=quiz_id, user_id=user_id, answers=req.answers
+            session, quiz_id=quiz_id, user_id=user_id, answers=req.answers, grader_llm=grader_llm
         )
     except quiz_service.QuizNotFound:
         raise HTTPException(status_code=404, detail="quiz not found")
