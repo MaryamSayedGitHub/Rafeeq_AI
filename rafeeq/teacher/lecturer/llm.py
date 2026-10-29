@@ -80,7 +80,11 @@ def get_llm(provider: str | None = None, temperature: float | None = None):
 
     if provider == "groq":
         from langchain_groq import ChatGroq
-        return ChatGroq(model=model, temperature=temperature)
+        # GROQ_MAX_TOKENS: cap the answer length. Groq refuses a request whose EXPECTED output is above the plan's
+        # output-tokens-per-minute limit (free tier: 1000) unless max_tokens is set below it.
+        cap = os.getenv("GROQ_MAX_TOKENS", "").strip()
+        return ChatGroq(model=model, temperature=temperature, max_retries=6,  # waits out per-minute limits (Retry-After)
+                        max_tokens=int(cap) if cap.isdigit() else None)
 
     if provider == "gemini":
         from langchain_google_genai import ChatGoogleGenerativeAI

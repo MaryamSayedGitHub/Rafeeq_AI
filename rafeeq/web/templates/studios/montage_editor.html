@@ -1,0 +1,189 @@
+{% extends "layout.html" %}
+{% from "macros.html" import project_bar with context %}
+{% block title %}{{ t('editor.title') }}{% endblock %}
+{% block content %}
+{# M5: the montage editor. Every change shows on the video at once; "Create final video" hands the decisions to the agent team. #}
+{% set keys = ['no_audio', 'analyzing', 'analyze_failed', 'pauses_found', 'no_pauses', 'writing', 'write_failed', 'no_captions', 'no_chapters',
+   'chapter_default', 'intro_default', 'sending', 'render_failed', 'nothing_to_do', 'line_placeholder', 'chapter_placeholder', 'sum_off', 'sum_none', 'gifs.searching', 'gifs.none', 'gifs.failed', 'gifs.empty', 'gifs.limit', 'gifs.library_none', 'gifs.from', 'gifs.to', 'gifs.size', 'gifs.here', 'gifs.end_here', 'gifs.remove', 'voice.listening', 'voice.drawing', 'voice.done', 'voice.none', 'voice.failed', 'voice.wait', 'voice.pic_failed', 'voice.kind.diagram', 'voice.kind.illustration', 'voice.kind.animation', 'voice.pending', 'sum_lines', 'sum_chapters', 'delta_less', 'delta_more'] %}
+<link rel="stylesheet" href="{{ u('/static/montage_editor.css') }}?v=4">
+<div class="page-head">
+  <div>
+    <h1>{{ t('editor.title') }}</h1>
+    <p dir="auto">{{ asset.title }}</p>
+  </div>
+  <a class="btn btn-secondary btn-sm" href="{{ u('/media', asset=asset.asset_id, **proj.q) }}">{{ icon('arrow', 16, 'back') }}<span>{{ t('editor.back') }}</span></a>
+</div>
+
+<section class="ed" id="ed" data-asset="{{ asset.asset_id }}" data-video="{{ u('/assets/' ~ asset.asset_id ~ '/file') }}"
+         data-base="{{ u('/media/' ~ asset.asset_id ~ '/editor') }}" data-title="{{ asset.title }}" data-csrf="{{ csrf }}" data-assets="{{ u('/assets/') }}">
+  <script type="application/json" id="ed-i18n">{ {% for k in keys %}"{{ k }}": {{ t('editor.' ~ k)|tojson }}{% if not loop.last %},{% endif %}{% endfor %} }</script>
+  <script type="application/json" id="ed-pics">[{% for m in pictures %}{"id": {{ m.asset_id|tojson }}, "title": {{ m.title|tojson }}, "url": {{ u('/assets/' ~ m.asset_id ~ '/file')|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]</script>
+  <script type="application/json" id="ed-music">[{% for m in music %}{"id": {{ m.asset_id|tojson }}, "title": {{ m.title|tojson }}, "url": {{ u('/assets/' ~ m.asset_id ~ '/file')|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]</script>
+
+  <header class="ed-hero" dir="auto">
+    <div class="ed-compare" aria-live="polite">
+      <div class="ed-cmp"><span class="ed-cmp-l">{{ t('editor.before') }}</span><div class="ed-bar"><i style="inline-size:100%"></i></div><b dir="ltr" id="ed-total">0:00</b></div>
+      <div class="ed-cmp"><span class="ed-cmp-l">{{ t('editor.after') }}</span><div class="ed-bar after"><i id="ed-bar-new"></i></div><b dir="ltr" id="ed-newlen">0:00</b><em id="ed-delta"></em></div>
+    </div>
+    <div class="ed-hero-actions">
+      <button class="ed-ghost" type="button" id="ed-reset">{{ t('editor.reset') }}</button>
+      <button class="ed-go" type="button" id="ed-render"><span>{{ t('editor.render') }}</span></button>
+    </div>
+    <p class="ed-status" id="ed-render-status"></p>
+  </header>
+
+  <div class="ed-main">
+    <nav class="ed-rail" role="tablist" aria-label="{{ t('editor.tools') }}" dir="auto">
+      <section class="ed-tc" data-color="coral">
+        <button class="ed-tool active" type="button" role="tab" data-tool="pauses" aria-selected="true">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v18M18 3v18M10 8h4M10 16h4"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.pauses') }}</b><small dir="auto" id="sum-pauses"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="pauses">        <p class="ed-hint">{{ t('editor.pauses.hint') }}</p>
+        <label class="ed-check"><input type="checkbox" id="ed-pauses-on" checked><span>{{ t('editor.pauses.cut_all') }}</span></label>
+        <label class="ed-range">{{ t('editor.pauses.min') }}: <b id="ed-min-label">1.0 s</b>
+          <input type="range" id="ed-min" min="0.8" max="4" step="0.1" value="1.0"></label>
+        <p class="ed-status" id="ed-pauses-status"></p>
+        <ul class="ed-list" id="ed-pauses-list"></ul>
+        </div>
+      </section>
+      <section class="ed-tc" data-color="sky">
+        <button class="ed-tool" type="button" role="tab" data-tool="trim" aria-selected="false">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.trim') }}</b><small dir="auto" id="sum-trim"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="trim" hidden>        <p class="ed-hint">{{ t('editor.trim.hint') }}</p>
+        <div class="ed-row"><label>{{ t('editor.trim.start') }}<input class="ed-input" id="ed-trim-a" inputmode="decimal" dir="ltr"></label>
+          <button class="ed-btn" type="button" id="ed-set-a">{{ t('editor.trim.set_start') }}</button></div>
+        <div class="ed-row"><label>{{ t('editor.trim.end') }}<input class="ed-input" id="ed-trim-b" inputmode="decimal" dir="ltr"></label>
+          <button class="ed-btn" type="button" id="ed-set-b">{{ t('editor.trim.set_end') }}</button></div>
+        </div>
+      </section>
+      <section class="ed-tc" data-color="mint">
+        <button class="ed-tool" type="button" role="tab" data-tool="captions" aria-selected="false">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 11h3M7 15h6M14 11h3"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.captions') }}</b><small dir="auto" id="sum-captions"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="captions" hidden>        <p class="ed-hint">{{ t('editor.cap.hint') }}</p>
+        <button class="ed-btn primary" type="button" id="ed-write">{{ t('editor.cap.write') }}</button>
+        <p class="ed-status" id="ed-cap-status"></p>
+        <label class="ed-check"><input type="checkbox" id="ed-cap-on" checked><span>{{ t('editor.cap.include') }}</span></label>
+        <label class="ed-check"><input type="checkbox" id="ed-burn" checked><span>{{ t('editor.cap.burn') }}</span></label>
+        <ul class="ed-list" id="ed-cap-list"></ul>
+        </div>
+      </section>
+      <section class="ed-tc" data-color="sun">
+        <button class="ed-tool" type="button" role="tab" data-tool="chapters" aria-selected="false">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3v18M5 4h13l-3 4 3 4H5"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.chapters') }}</b><small dir="auto" id="sum-chapters"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="chapters" hidden>        <p class="ed-hint">{{ t('editor.ch.hint') }}</p>
+        <button class="ed-btn" type="button" id="ed-add-ch">{{ t('editor.ch.add_here') }}</button>
+        <ul class="ed-list" id="ed-ch-list"></ul>
+        </div>
+      </section>
+      <section class="ed-tc" data-color="pink">
+        <button class="ed-tool" type="button" role="tab" data-tool="gifs" aria-selected="false">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.5 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.gifs') }}</b><small dir="auto" id="sum-gifs"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="gifs" hidden>        <p class="ed-hint">{{ t('editor.gifs.hint') }}</p>
+        <form class="ed-row ed-gifsearch" id="ed-gif-form" role="search">
+          <input class="ed-input" id="ed-gif-q" maxlength="80" dir="auto" placeholder="{{ t('editor.gifs.search') }}" aria-label="{{ t('editor.gifs.search') }}">
+          <button class="ed-btn primary" type="submit" id="ed-gif-go">{{ t('editor.gifs.go') }}</button>
+        </form>
+        <p class="ed-status" id="ed-gif-status"></p>
+        <div class="ed-grid" id="ed-gif-grid"></div>
+        <p class="ed-powered" dir="ltr">{{ t('editor.gifs.powered') }}</p>
+        <h4 class="ed-sub">{{ t('editor.gifs.library') }}</h4>
+        <div class="ed-grid" id="ed-pic-grid"></div>
+        <h4 class="ed-sub">{{ t('editor.gifs.placed') }}</h4>
+        <ul class="ed-list tall" id="ed-st-list"></ul>
+        <p class="ed-hint">{{ t('editor.gifs.cut_note') }}</p>
+        </div>
+      </section>
+      <section class="ed-tc" data-color="teal">
+        <button class="ed-tool" type="button" role="tab" data-tool="voice" aria-selected="false">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="8" height="11" rx="4"/><path d="M6 19v-2M14 6h7v12h-7zM16 14l2-3 2 3"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.voice') }}</b><small dir="auto" id="sum-voice"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="voice" hidden>        <p class="ed-hint">{{ t('editor.voice.hint') }}</p>
+        <button class="ed-btn primary" type="button" id="ed-voice-go">{{ t('editor.voice.go') }}</button>
+        <p class="ed-status" id="ed-voice-status"></p>
+        <ul class="ed-list" id="ed-voice-list"></ul>
+        </div>
+      </section>
+      <section class="ed-tc" data-color="plum">
+        <button class="ed-tool" type="button" role="tab" data-tool="cards" aria-selected="false">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.cards') }}</b><small dir="auto" id="sum-cards"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="cards" hidden>        <label class="ed-check"><input type="checkbox" id="ed-intro-on"><span>{{ t('editor.cards.intro') }}</span></label>
+        <label>{{ t('editor.cards.title') }}<input class="ed-input" id="ed-c-title" maxlength="120" dir="auto" value="{{ asset.title }}"></label>
+        <label>{{ t('editor.cards.subtitle') }}<input class="ed-input" id="ed-c-sub" maxlength="120" dir="auto"></label>
+        <label class="ed-check"><input type="checkbox" id="ed-outro-on"><span>{{ t('editor.cards.outro') }}</span></label>
+        <label>{{ t('editor.cards.outro_text') }}<input class="ed-input" id="ed-c-outro" maxlength="120" dir="auto"></label>
+        <div class="ed-row"><button class="ed-btn" type="button" id="ed-prev-intro">{{ t('editor.cards.preview_intro') }}</button>
+          <button class="ed-btn" type="button" id="ed-prev-outro">{{ t('editor.cards.preview_outro') }}</button></div>
+        </div>
+      </section>
+      <section class="ed-tc" data-color="violet">
+        <button class="ed-tool" type="button" role="tab" data-tool="music" aria-selected="false">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.music') }}</b><small dir="auto" id="sum-music"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="music" hidden>        {% if music %}
+        <label>{{ t('editor.music.pick') }}
+          <select class="ed-input" id="ed-music-sel"><option value="">{{ t('editor.music.none') }}</option>
+            {% for m in music %}<option value="{{ m.asset_id }}">{{ m.title }}</option>{% endfor %}</select></label>
+        <label class="ed-check"><input type="checkbox" id="ed-music-prev" checked><span>{{ t('editor.music.preview') }}</span></label>
+        <p class="ed-hint">{{ t('editor.music.hint') }}</p>
+        {% else %}<p class="ed-hint">{{ t('editor.music.no_music') }}</p>{% endif %}
+        </div>
+      </section>
+    </nav>
+
+    <div class="ed-work" dir="ltr">
+      <div class="ed-stage" id="ed-stage">
+        <video id="ed-video" preload="auto" playsinline></video>
+        <div class="ed-caption" id="ed-caption" aria-live="off"></div>
+        <div class="ed-card" id="ed-card" hidden><div class="ed-card-bar"></div><strong id="ed-card-title" dir="auto"></strong><span id="ed-card-sub" dir="auto"></span></div>
+        <div class="ed-stl" id="ed-stl"></div>
+        <div class="ed-badge" id="ed-badge" hidden></div>
+        <div class="ed-float">
+          <button class="ed-play" id="ed-play" type="button" aria-label="{{ t('editor.play') }}">
+            <svg class="i-play" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
+            <svg class="i-pause" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" hidden><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+          </button>
+          <span class="ed-time"><b id="ed-now">0:00</b></span>
+          <label class="ed-check"><input type="checkbox" id="ed-preview" checked><span dir="auto">{{ t('editor.preview_edits') }}</span></label>
+        </div>
+      </div>
+
+      <div class="ed-lanes" id="ed-lanes" aria-label="{{ t('editor.timeline') }}">
+        <div class="ed-labels" dir="auto">
+          <span class="l-video">{{ t('editor.lane.video') }}</span><span class="l-pauses">{{ t('editor.lane.pauses') }}</span>
+          <span class="l-caps">{{ t('editor.lane.captions') }}</span><span class="l-chs">{{ t('editor.lane.chapters') }}</span><span class="l-gifs">{{ t('editor.lane.gifs') }}</span>
+          <span class="l-cards">{{ t('editor.lane.cards') }}</span><span class="l-music">{{ t('editor.lane.music') }}</span>
+        </div>
+        <div class="ed-tracks" id="ed-tracks">
+          <div class="ed-lane video"><canvas id="ed-film" height="56"></canvas><div class="ed-layer" id="ed-cuts-v"></div>
+            <div class="ed-shade left" id="ed-shade-a"></div><div class="ed-shade right" id="ed-shade-b"></div>
+            <div class="ed-handle" id="ed-handle-a" role="slider" aria-label="{{ t('editor.trim.start') }}" tabindex="0"></div>
+            <div class="ed-handle" id="ed-handle-b" role="slider" aria-label="{{ t('editor.trim.end') }}" tabindex="0"></div></div>
+          <div class="ed-lane pauses"><div class="ed-layer live" id="ed-cuts"></div></div>
+          <div class="ed-lane caps"><div class="ed-layer" id="ed-caps"></div></div>
+          <div class="ed-lane chs"><div class="ed-layer live" id="ed-chs"></div></div>
+          <div class="ed-lane gifs"><div class="ed-layer live" id="ed-gifs"></div></div>
+          <div class="ed-lane cards"><span class="ed-chip in" id="ed-chip-in" hidden>{{ t('editor.cards.intro') }}</span><span class="ed-chip out" id="ed-chip-out" hidden>{{ t('editor.cards.outro') }}</span></div>
+          <div class="ed-lane music"><span class="ed-music-bar" id="ed-music-bar" hidden></span></div>
+          <div class="ed-head" id="ed-head"></div>
+        </div>
+        <div class="ed-ticks" id="ed-ticks"></div>
+      </div>
+    </div>
+  </div>
+  <div id="ed-result" aria-live="polite" dir="auto"></div>
+</section>
+<script src="{{ u('/static/montage_editor.js') }}?v=4" defer></script>
+{% endblock %}

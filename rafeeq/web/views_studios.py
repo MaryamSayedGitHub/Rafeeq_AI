@@ -11,7 +11,7 @@ from urllib.parse import quote
 
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, PlainTextResponse, Response
 
 from rafeeq.web import api as A
 from rafeeq.web.common import (api, api_message, check_csrf, flash, lang_of, notice, redirect, render, require_user, tr, url as u)
@@ -21,7 +21,7 @@ from rafeeq.web.views_teacher import _image_part, _image_too_large, _int
 STORY_STYLES = ("storybook", "flat", "clay", "realistic")
 MEDIA_KINDS = ("image", "video", "generated_video", "audio")
 COURSE_SKIP_KINDS = ("theme",)
-MAX_MEDIA_BODY = {"image": 15, "video": 150, "audio": 40}
+MAX_MEDIA_BODY = {"image": 15, "video": 1024, "audio": 40}
 
 
 # ------------------------------------------------------------------ shared helpers
@@ -96,7 +96,15 @@ async def video_page(request: Request):
     covers = [a for a in (await _assets(request, user, kind="image")).get("assets", []) if a.get("origin") == "external"]
     query = request.query_params.get("q", "")[:300] or (proj["session"] or {}).get("topic", "")
     return page(request, "studios/video.html", "video", proj, query=query, moments_res=moments_res,
-                moments=moments_res.get("assets", []), covers=covers[:6])
+                moments=moments_res.get("assets", []), covers=covers[:6],
+                history=await _video_history(request, user, proj["room"]["room_id"] if proj["room"] else ""))
+
+
+async def _video_history(request: Request, user: dict, room_id: str = "") -> list[dict]:
+    """The teacher's earlier searches (empty when the API cannot say)."""
+    res = await api(request).get("/teacher/videos/searches", token=user["token"], params={"room_id": room_id}, timeout=30)
+    ensure_session(request, res)
+    return res.get("searches", []) if res.ok else []
 
 
 async def video_search(request: Request):
@@ -105,12 +113,36 @@ async def video_search(request: Request):
     q = str(form.get("q", "")).strip()
     if len(q) < 3:
         return notice(request, tr(request, "video.need_question"), "warning")
-    res = await api(request).get("/teacher/videos/search", token=user["token"], params={"q": q[:300], "top_k": 5}, timeout=180)
+    room_id = str(form.get("room_id", ""))[:60]
+    res = await api(request).get("/teacher/videos/search", token=user["token"],
+                                 params={"q": q[:300], "top_k": 5, "room_id": room_id}, timeout=180)
     ensure_session(request, res)
     if not res.ok:
         return notice(request, api_message(request, res), "warning")
-    return render(request, "partials/video_results.html", room_id=str(form.get("room_id", ""))[:60], query=q,
-                  results=res.data.get("results", []))
+    return render(request, "partials/video_results.html", room_id=room_id, query=q,
+                  results=res.data.get("results", []), history=await _video_history(request, user, room_id), history_oob=True)
+
+
+async def video_history_open(request: Request):
+    """An earlier search, shown again from the history: the saved results, nothing is searched again."""
+    user = require_user(request, "teacher")
+    res = await api(request).get(f"/teacher/videos/searches/{quote(request.path_params['search_id'], safe='')}",
+                                 token=user["token"], timeout=30)
+    ensure_session(request, res)
+    if not res.ok:
+        return notice(request, tr(request, "video.history_gone"), "warning")
+    return render(request, "partials/video_results.html", room_id=res.data.get("room_id", ""), query=res.data.get("query", ""),
+                  results=res.data.get("results", []), from_history=res.data.get("time", ""))
+
+
+async def video_history_delete(request: Request):
+    user = require_user(request, "teacher")
+    form = await check_csrf(request)
+    res = await api(request).delete(f"/teacher/videos/searches/{quote(request.path_params['search_id'], safe='')}",
+                                    token=user["token"], timeout=30)
+    ensure_session(request, res)
+    room_id = str(form.get("room_id", ""))[:60]
+    return render(request, "partials/video_history.html", history=await _video_history(request, user, room_id), room_id=room_id)
 
 
 async def video_moment_save(request: Request):
@@ -155,7 +187,8 @@ async def media_page(request: Request):
     selected = next((a for a in items if a["asset_id"] == selected_id), None)
     if selected is None and selected_id:
         selected = next((a for a in assets_res.get("assets", []) if a["asset_id"] == selected_id and a["kind"] in MEDIA_KINDS), None)
-    return page(request, "studios/media.html", "media", proj, res=assets_res, items=items, selected=selected,
+    music = [a for a in assets_res.get("assets", []) if a["kind"] == "audio" and a["status"] == "ready"]
+    return page(request, "studios/media.html", "media", proj, res=assets_res, items=items, selected=selected, music=music,
                 caps=caps_res.data if caps_res.ok else {}, caps_ok=caps_res.ok)
 
 
@@ -173,7 +206,7 @@ async def media_upload(request: Request):
         flash(request, "warning", tr(request, "media.need_file"))
         return redirect(request, "/media")
     data = await upload.read(MAX_MEDIA_BODY["video"] * 1024 * 1024 + 1)
-    res = await api(request).post("/teacher/media/upload", token=user["token"], timeout=180,
+    res = await api(request).post("/teacher/media/upload", token=user["token"], timeout=600,
                                   data={"title": str(form.get("title", "")).strip()[:200], "room_id": str(form.get("room_id", ""))[:60]},
                                   files={"file": (upload.filename, data, upload.content_type or "application/octet-stream")})
     ensure_session(request, res)
@@ -293,6 +326,116 @@ async def media_video_status(request: Request):
     return render(request, "partials/video_job.html", poll_base="/media/video/generate/", task_id=task_id, job=job,
                   used_avatar=False, prompt=request.query_params.get("prompt", "")[:800], saved=saved,
                   edit_url=u(request, "/media", asset=job["asset_id"]) if saved else "")
+
+
+# ------------------------------------------------------------------ Smart montage of a recorded lecture
+async def montage_start(request: Request):
+    user = require_user(request, "teacher")
+    form = await check_csrf(request)
+    asset_id = request.path_params.get("asset_id") or str(form.get("video_asset_id", ""))[:40]
+    if not asset_id:
+        return notice(request, tr(request, "studio.video_none"), "warning")
+    body = {name: bool(form.get(name)) for name in ("cut_silence", "captions", "burn_captions", "chapters", "intro", "outro")}
+    body.update({"title": str(form.get("title", "")).strip()[:120], "subtitle": str(form.get("subtitle", "")).strip()[:120],
+                 "outro_text": str(form.get("outro_text", "")).strip()[:120],
+                 "music_asset_id": str(form.get("music_asset_id", ""))[:40] if form.get("music") else ""})
+    if not any(body[k] for k in ("cut_silence", "captions", "chapters", "intro", "outro")) and not body["music_asset_id"]:
+        return notice(request, tr(request, "montage.pick_one"), "warning")
+    if body["intro"] and not body["title"]:
+        return notice(request, tr(request, "montage.need_title"), "warning")
+    res = await api(request).post(f"/teacher/media/{quote(asset_id, safe='')}/montage", token=user["token"], json=body, timeout=60)
+    ensure_session(request, res)
+    if not res.ok:
+        key = "media.no_ffmpeg" if res.status == 503 and "ffmpeg" in (res.message or "") else None
+        return notice(request, tr(request, key) if key else (res.message or api_message(request, res)), "warning")
+    return render(request, "partials/montage_job.html", job=res.data)
+
+
+async def montage_status(request: Request):
+    user = require_user(request, "teacher")
+    res = await api(request).get(f"/teacher/montages/{quote(request.path_params['asset_id'], safe='')}", token=user["token"], timeout=30)
+    ensure_session(request, res)
+    if not res.ok:
+        return notice(request, api_message(request, res), "warning")
+    return render(request, "partials/montage_job.html", job=res.data)
+
+
+async def montage_captions(request: Request):
+    user = require_user(request, "teacher")
+    res = await api(request).get(f"/teacher/montages/{quote(request.path_params['asset_id'], safe='')}", token=user["token"], timeout=30)
+    srt = ((res.data or {}).get("settings") or {}).get("montage", {}).get("srt", "") if res.ok else ""
+    if not srt:
+        raise HTTPException(status_code=404, detail="captions")
+    return PlainTextResponse(srt, media_type="text/plain; charset=utf-8",
+                             headers={"Content-Disposition": 'attachment; filename="captions.srt"'})
+
+
+# ------------------------------------------------------------------ montage editor (live preview, then the agents render it)
+async def montage_editor_page(request: Request):
+    user = require_user(request, "teacher")
+    asset_id = request.path_params["asset_id"]
+    proj = await project(request, user)
+    asset_res, assets_res, caps_res = await gather(
+        api(request).get(f"/teacher/assets/{quote(asset_id, safe='')}", token=user["token"]),
+        _assets(request, user), api(request).get("/teacher/media/capabilities", token=user["token"]))
+    ensure_session(request, asset_res)
+    asset = asset_res.data if asset_res.ok else None
+    if not asset or asset.get("kind") not in ("video", "generated_video") or asset.get("status") != "ready" or not asset.get("file_url"):
+        flash(request, "warning", tr(request, "editor.no_video"))
+        return redirect(request, "/media")
+    music = [a for a in assets_res.get("assets", []) if a["kind"] == "audio" and a["status"] == "ready"]
+    pictures = [a for a in assets_res.get("assets", []) if a["kind"] == "image" and a["status"] == "ready"]
+    return page(request, "studios/montage_editor.html", "media", proj, asset=asset, music=music, pictures=pictures,
+                caps=caps_res.data if caps_res.ok else {})
+
+
+async def montage_editor_api(request: Request):
+    """The editor's calls (JSON in, JSON out): analyze (pauses), transcribe (captions + chapters), gifs (Giphy search),
+    visuals + visual_status (Voice-to-Visual), render."""
+    user = require_user(request, "teacher")
+    await check_csrf(request)
+    asset_id, action = quote(request.path_params["asset_id"], safe=""), request.path_params["action"]
+    base = f"/teacher/media/{asset_id}/montage"
+    if action in ("analyze", "transcribe"):
+        res = await api(request).post(f"{base}/{action}", token=user["token"], timeout=1200)   # a 90 min lecture takes minutes
+    elif action == "gifs":
+        try:
+            q = str((await request.json()).get("q", ""))[:80]
+        except (ValueError, AttributeError):
+            q = ""
+        res = await api(request).get("/teacher/media/gifs", token=user["token"], params={"q": q}, timeout=30)
+    elif action == "visuals":                      # Voice-to-Visual: plan the pictures from what is said
+        try:
+            body = await request.json()
+        except ValueError:
+            body = {}
+        segs = body.get("segments") if isinstance(body, dict) else None
+        res = await api(request).post(f"{base}/visuals", token=user["token"], json={"segments": segs if isinstance(segs, list) else None},
+                                      timeout=1200)
+    elif action == "visual_status":
+        try:
+            task_id = str((await request.json()).get("task_id", ""))[:80]
+        except (ValueError, AttributeError):
+            task_id = ""
+        if not task_id:
+            return JSONResponse({"error": tr(request, "err.invalid")}, status_code=400)
+        res = await api(request).get(f"/teacher/visuals/{quote(task_id, safe='')}", token=user["token"], timeout=30)
+    elif action == "render":
+        try:
+            body = await request.json()
+        except ValueError:
+            return JSONResponse({"error": tr(request, "err.invalid")}, status_code=400)
+        res = await api(request).post(base, token=user["token"], json=body, timeout=60)
+    else:
+        raise HTTPException(status_code=404, detail="action")
+    ensure_session(request, res)
+    if not res.ok:
+        key = "media.no_ffmpeg" if res.status == 503 and "ffmpeg" in (res.message or "") else None
+        text = tr(request, key) if key else (res.message or api_message(request, res))
+        return JSONResponse({"error": text}, status_code=res.status if 400 <= res.status < 600 else 502)
+    if action == "render":
+        return render(request, "partials/montage_job.html", job=res.data)
+    return JSONResponse(res.data)
 
 
 # ------------------------------------------------------------------ Story video (several scenes, about 30 s)
@@ -477,8 +620,21 @@ async def learning_page(request: Request):
     if asset_id:
         found = await api(request).get(f"/teacher/assets/{quote(asset_id, safe='')}", token=user["token"])
         pick = found.data if found.ok else None
-    return page(request, "studios/learning.html", "learning", proj, res=courses_res, courses=courses_res.get("courses", []),
+    cards = [{**c, "stats": course_stats(course_outline(c, _teacher_file(request)))} for c in courses_res.get("courses", [])]
+    published = [c for c in cards if c.get("published_room_id")]
+    if published:
+        sums = await gather(*[api(request).get(f"/teacher/courses/{quote(c['course_id'], safe='')}/progress", token=user["token"])
+                              for c in published])
+        for c, r in zip(published, sums):
+            c["class_progress"] = r.data if r.ok else None
+    return page(request, "studios/learning.html", "learning", proj, res=courses_res, courses=cards,
                 pick=pick, keep={"asset": asset_id} if pick else {})
+
+
+def _teacher_file(request: Request):
+    def link(a: dict) -> str:
+        return u(request, f"/assets/{a['asset_id']}/file") if a.get("file_url") else ""
+    return link
 
 
 async def course_create(request: Request):
@@ -509,8 +665,30 @@ async def course_page(request: Request):
         raise HTTPException(status_code=404, detail="course")
     library = [a for a in library_res.get("assets", []) if a["kind"] not in COURSE_SKIP_KINDS]
     asset_id = request.query_params.get("asset", "")[:40]
-    return page(request, "studios/course.html", "learning", proj, res=course_res, course=course_res.data, library=library,
-                pick=next((a for a in library if a["asset_id"] == asset_id), None))
+    course = course_res.data
+    modules = course_outline(course, _teacher_file(request))
+    class_progress = None
+    if course.get("published_room_id"):
+        r = await api(request).get(f"/teacher/courses/{quote(cid, safe='')}/progress", token=user["token"])
+        class_progress = r.data if r.ok else None
+    return page(request, "studios/course.html", "learning", proj, res=course_res, course=course, library=library,
+                pick=next((a for a in library if a["asset_id"] == asset_id), None), modules=modules,
+                stats=course_stats(modules), class_progress=class_progress)
+
+
+async def course_preview(request: Request):
+    """The course as a student will see it (the current draft, not the published copy)."""
+    user = require_user(request, "teacher")
+    proj = await project(request, user)
+    cid = request.path_params["course_id"]
+    res = await api(request).get(f"/teacher/courses/{quote(cid, safe='')}", token=user["token"])
+    ensure_session(request, res)
+    if not res.ok:
+        raise HTTPException(status_code=404, detail="course")
+    modules = course_outline(res.data, _teacher_file(request))
+    view = _player(modules, request.query_params.get("item", "")[:120])
+    return page(request, "learn/player.html", "learning", proj, course=res.data, modules=modules, stats=course_stats(modules),
+                done=set(), percent=0, mode="preview", base=u(request, f"/learning/{cid}/preview"), back=u(request, f"/learning/{cid}"), **view)
 
 
 def _course_url(cid: str) -> str:
@@ -616,12 +794,120 @@ async def course_unpublish(request: Request):
     return await _course_post(request, "/unpublish", "course.unpublished")
 
 
+# ------------------------------------------------------------------ learning platform: a course as modules and items
+VIDEO_KINDS = ("video", "generated_video")
+
+
+def course_outline(course: dict, file_url) -> list[dict]:
+    """The course as the player shows it: modules (lessons) of items. `file_url(asset)` gives a file's link or ''.
+    Item ids match rafeeq/teacher/course_progress.py: '<lesson>:<asset>' and '<lesson>:notes'."""
+    from rafeeq.web.common import yt_embed
+
+    modules = []
+    for n, lesson in enumerate(course.get("lessons", []), 1):
+        items = []
+        if (lesson.get("notes") or "").strip():
+            items.append({"id": f"{lesson['lesson_id']}:notes", "type": "reading", "title": lesson["title"], "notes": lesson["notes"],
+                          "kind": "notes"})
+        for a in lesson.get("assets", []):
+            src = file_url(a)
+            kind = a.get("kind", "")
+            if kind in VIDEO_KINDS:
+                kind_type = "video" if src else "file"
+            elif kind == "source_video":
+                kind_type = "youtube" if yt_embed(a.get("source_url", ""), a.get("start_sec"), a.get("end_sec")) else "link"
+            elif kind in ("audio", "image"):
+                kind_type = kind if src else "file"
+            else:
+                kind_type = "file"
+            items.append({"id": f"{lesson['lesson_id']}:{a['asset_id']}", "type": kind_type, "kind": kind, "title": a["title"],
+                          "src": src, "source_url": a.get("source_url", ""), "start": a.get("start_sec"), "end": a.get("end_sec"),
+                          "embed": yt_embed(a.get("source_url", ""), a.get("start_sec"), a.get("end_sec")) if kind == "source_video" else ""})
+        modules.append({"n": n, "lesson_id": lesson["lesson_id"], "title": lesson["title"], "items": items})
+    return modules
+
+
+def course_stats(modules: list[dict]) -> dict:
+    items = [i for m in modules for i in m["items"]]
+    return {"modules": len(modules), "items": len(items),
+            "videos": sum(1 for i in items if i["type"] in ("video", "youtube")),
+            "materials": sum(1 for i in items if i["type"] not in ("video", "youtube")),
+            "cover": next((i["src"] for i in items if i["type"] == "image" and i["src"]), "")}
+
+
+def _player(modules: list[dict], item_id: str) -> dict:
+    """The current item and its neighbours (the first item when item_id is unknown)."""
+    flat = [i for m in modules for i in m["items"]]
+    idx = next((k for k, i in enumerate(flat) if i["id"] == item_id), 0)
+    current = flat[idx] if flat else None
+    module = next((m for m in modules if current and any(i["id"] == current["id"] for i in m["items"])), None)
+    return {"current": current, "module": module, "prev": flat[idx - 1] if flat and idx > 0 else None,
+            "next": flat[idx + 1] if flat and idx + 1 < len(flat) else None, "index": idx + 1 if flat else 0, "count": len(flat)}
+
+
 # ------------------------------------------------------------------ what students see
+def _room_file(request: Request, room_id: str, course_id: str):
+    def link(a: dict) -> str:
+        return u(request, f"/rooms/{room_id}/courses/{course_id}/assets/{a['asset_id']}/file") if a.get("file_url") else ""
+    return link
+
+
+async def _progress(request: Request, user: dict, room_id: str, course_id: str) -> dict:
+    res = await api(request).get(f"/rooms/{quote(room_id, safe='')}/courses/{quote(course_id, safe='')}/progress",
+                                 token=user["token"], timeout=30)
+    return res.data if res.ok else {"done": [], "last": "", "percent": 0, "total": 0}
+
+
 async def learn_page(request: Request):
+    """The room's course catalog: one card per published course, with the student's own progress."""
     user, room, rooms = await load_room(request, request.path_params["room_id"])
     res = await api(request).get(f"/rooms/{quote(room['room_id'], safe='')}/courses", token=user["token"])
     ensure_session(request, res)
-    return render(request, "room/learn.html", room=room, rooms=rooms, tab="learn", res=res, courses=res.get("courses", []))
+    cards = []
+    for c in res.get("courses", []):
+        modules = course_outline(c, _room_file(request, room["room_id"], c["course_id"]))
+        cards.append({**c, "stats": course_stats(modules)})
+    if user.get("role") != "teacher" and cards:
+        progress = await gather(*[_progress(request, user, room["room_id"], c["course_id"]) for c in cards])
+        for c, p in zip(cards, progress):
+            c["progress"] = p
+    return render(request, "room/learn.html", room=room, rooms=rooms, tab="learn", res=res, courses=cards)
+
+
+async def learn_course(request: Request):
+    """The course player: the outline on one side, the current item, previous / next, mark as complete."""
+    user, room, rooms = await load_room(request, request.path_params["room_id"])
+    cid = request.path_params["course_id"]
+    res = await api(request).get(f"/rooms/{quote(room['room_id'], safe='')}/courses", token=user["token"])
+    ensure_session(request, res)
+    course = next((c for c in res.get("courses", []) if c["course_id"] == cid), None)
+    if course is None:
+        raise HTTPException(status_code=404, detail="course")
+    modules = course_outline(course, _room_file(request, room["room_id"], cid))
+    student = user.get("role") != "teacher"
+    progress = await _progress(request, user, room["room_id"], cid) if student else {"done": [], "last": "", "percent": 0}
+    item_id = request.query_params.get("item", "")[:120] or progress.get("last", "")
+    view = _player(modules, item_id)
+    if student and view["current"] and view["current"]["id"] != progress.get("last"):
+        await api(request).post(f"/rooms/{quote(room['room_id'], safe='')}/courses/{quote(cid, safe='')}/progress",
+                                token=user["token"], json={"item_id": view["current"]["id"], "opened": True}, timeout=30)
+    base = u(request, f"/rooms/{room['room_id']}/learn/{cid}")
+    return render(request, "learn/player.html", room=room, rooms=rooms, tab="learn", course=course, modules=modules,
+                  stats=course_stats(modules), done=set(progress.get("done", [])), percent=progress.get("percent", 0),
+                  mode="student" if student else "teacher", base=base, back=u(request, f"/rooms/{room['room_id']}/learn"), **view)
+
+
+async def learn_progress(request: Request):
+    """Mark the current item complete (or not) and go on to the next item."""
+    user, room, _ = await load_room(request, request.path_params["room_id"])
+    form = await check_csrf(request)
+    cid = request.path_params["course_id"]
+    item_id = str(form.get("item_id", ""))[:120]
+    done = str(form.get("done", "1")) == "1"
+    await api(request).post(f"/rooms/{quote(room['room_id'], safe='')}/courses/{quote(cid, safe='')}/progress",
+                            token=user["token"], json={"item_id": item_id, "done": done}, timeout=30)
+    go = str(form.get("next", "")) or item_id
+    return redirect(request, f"/rooms/{room['room_id']}/learn/{cid}", item=go)
 
 
 async def learn_file(request: Request):

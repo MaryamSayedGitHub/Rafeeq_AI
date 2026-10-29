@@ -1,6 +1,7 @@
 """Teacher workspace inside a room: Overview, Students, Class insights, Lesson studio, Profile."""
 from __future__ import annotations
 
+import re
 from urllib.parse import quote
 
 from starlette.exceptions import HTTPException
@@ -379,7 +380,26 @@ async def asset_file(request: Request):
     headers = {"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"}
     if request.query_params.get("download"):
         headers["Content-Disposition"] = res.headers.get("content-disposition", "attachment")
-    return Response(res.content, media_type=res.headers.get("content-type", "application/octet-stream"), headers=headers)
+    return _with_ranges(request, res.content, res.headers.get("content-type", "application/octet-stream"), headers)
+
+
+def _with_ranges(request: Request, data: bytes, media_type: str, headers: dict) -> Response:
+    """Answer a `Range: bytes=a-b` request with 206, so a <video> can jump around in a long recording."""
+    headers = {**headers, "Accept-Ranges": "bytes"}
+    spec = request.headers.get("range", "")
+    m = re.fullmatch(r"bytes=(\d*)-(\d*)", spec.strip()) if spec else None
+    if not m or not (m.group(1) or m.group(2)) or not data:
+        return Response(data, media_type=media_type, headers=headers)
+    size = len(data)
+    if m.group(1):
+        start = int(m.group(1))
+        end = min(int(m.group(2)), size - 1) if m.group(2) else size - 1
+    else:                                                           # "bytes=-500": the last 500 bytes
+        start, end = max(0, size - int(m.group(2))), size - 1
+    if start >= size or start > end:
+        return Response(status_code=416, headers={**headers, "Content-Range": f"bytes */{size}"})
+    return Response(data[start:end + 1], status_code=206, media_type=media_type,
+                    headers={**headers, "Content-Range": f"bytes {start}-{end}/{size}"})
 
 
 # ---------------------------------------------------------------- profile

@@ -34,6 +34,7 @@ from pathlib import Path
 from rafeeq.teacher import assets as asset_lib
 from rafeeq.teacher import media_tools
 from rafeeq.teacher.lecturer import video_gen
+from rafeeq.observability import traced
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ def _blueprint(llm, topic: str, lang: str, material: str = "") -> dict:
     return {"facts": facts, **{k: _clean(data.get(k), 220) for k in ("objective", "analogy", "example", "misconception")}}
 
 
+@traced("story_video.plan", "generation")
 def plan_story(topic: str, scenes: int = DEFAULT_SCENES, language: str = "ar", style: str = "storybook", llm=None,
                material: str = "") -> dict:
     """{'style','character','setting','scenes':[{'visual','narration'}]}. Raises StoryError."""

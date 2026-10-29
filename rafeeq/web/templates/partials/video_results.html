@@ -1,4 +1,5 @@
 {# M5: YouTube results that open at the second that answers the question. One player, Previous / Next. #}
+{% if from_history %}<div class="inline-note">{{ icon('refresh', 16) }}<span>{{ t('video.history_note', date=from_history[:10]) }}</span></div>{% endif %}
 {% if not results %}
   {% with text=t('video.no_results'), kind='info' %}{% include "partials/notice.html" %}{% endwith %}
 {% else %}
@@ -143,3 +144,4 @@
 })();
 </script>
 {% endif %}
+{% if history_oob %}{% include "partials/video_history.html" %}{% endif %}

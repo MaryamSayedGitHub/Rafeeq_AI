@@ -29,6 +29,7 @@ class FakeStore:
     ("01012345678", "201012345678"),
     ("+20 101 234 5678", "201012345678"),
     ("0020 1012345678", "201012345678"),
+    ("1012345678", "201012345678"),     # Excel stores 01012345678 as a number and drops the 0
     ("", ""),
 ])
 def test_phone_is_made_ready_for_whatsapp(raw, want):

@@ -24,6 +24,8 @@
       <div class="htmx-indicator inline-loading" id="video-search-indicator"><span class="spinner"></span>{{ t('video.searching') }}</div>
     </form>
     <p class="help">{{ t('video.cover_note') }}</p>
+    {% set room_id = proj.room.room_id if proj.room else '' %}
+    {% include "partials/video_history.html" %}
   </section>
   <div class="stack">
     <div id="video-search-area" aria-live="polite">

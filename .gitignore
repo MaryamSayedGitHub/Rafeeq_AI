@@ -10,3 +10,5 @@ outputs/
 storage/
 *.db
 results/smoke_check.json
+
+evals/results/

@@ -50,9 +50,10 @@
   {% set nq = nav_q or ({'room': room.room_id} if room else {}) %}
   <div class="side-label">{{ t('nav.studios') }}</div>
   <nav class="side-nav" aria-label="{{ t('nav.studios') }}">
-    {% for key, ic in [('studio','sparkle'), ('video','search'), ('presentations','presentation'), ('media','image'), ('story','film'), ('learning','book'), ('library','folder')] %}
+    {% for key, ic in [('studio','sparkle'), ('video','search'), ('media','film'), ('story','clip'), ('learning','book'), ('library','folder')] %}
     {% set href = u('/rooms/' ~ room.room_id ~ '/studio') if (key == 'studio' and room) else (u('/library') if key == 'library' else u('/' ~ key, **nq)) %}
-    <a class="nav-link {% if tab == key %}active{% endif %}" href="{{ href }}" {% if tab == key %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ t('nav.' ~ key) }}</span></a>
+    {% set on = tab == key or (key == 'studio' and tab == 'presentations') %}
+    <a class="nav-link {% if on %}active{% endif %}" href="{{ href }}" {% if on %}aria-current="page"{% endif %}>{{ icon(ic) }}<span>{{ t('nav.' ~ key) }}</span></a>
     {% endfor %}
   </nav>
   <nav class="side-nav side-bottom">

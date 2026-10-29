@@ -11,6 +11,47 @@
 {{ project_bar(proj, '/media') }}
 {% set rid = proj.room.room_id if proj.room else '' %}
 
+{% set vids = items|selectattr('kind', 'in', ('video', 'generated_video'))|selectattr('status', 'equalto', 'ready')|list %}
+{% if vids %}
+<section class="panel panel-pad" id="montage-panel" aria-labelledby="montage-title">
+  <h2 class="panel-title" id="montage-title">{{ icon('film', 18) }}<span>{{ t('montage.title') }}</span></h2>
+  <p class="muted">{{ t('montage.intro') }}</p>
+  <p><a class="btn btn-primary" href="{{ u('/media/' ~ (selected.asset_id if selected and selected in vids else vids[0].asset_id) ~ '/editor', **proj.q) }}">{{ icon('film', 18) }}<span>{{ t('editor.open') }}</span></a>
+    <span class="muted small">{{ t('editor.open_hint') }}</span></p>
+  {% if not caps.get('ffmpeg') %}<div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('media.no_ffmpeg') }}</span></div>{% endif %}
+  <form class="form-stack" hx-post="{{ u('/media/montage') }}" hx-target="#montage-area" hx-indicator="#montage-indicator">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="field"><label for="m-video">{{ t('studio.video') }}</label>
+      <select class="input" id="m-video" name="video_asset_id" dir="auto">
+        {% for v in vids %}<option value="{{ v.asset_id }}"{% if selected and selected.asset_id == v.asset_id %} selected{% endif %}>{{ v.title }}</option>{% endfor %}
+      </select></div>
+    <div class="check-row">
+      <label class="check-pill"><input type="checkbox" name="cut_silence" value="1" checked><span>{{ t('montage.cut_silence') }}</span></label>
+      <label class="check-pill"><input type="checkbox" name="captions" value="1" checked><span>{{ t('montage.captions') }}</span></label>
+      <label class="check-pill"><input type="checkbox" name="burn_captions" value="1"><span>{{ t('montage.burn') }}</span></label>
+      <label class="check-pill"><input type="checkbox" name="chapters" value="1" checked><span>{{ t('montage.chapters') }}</span></label>
+    </div>
+    <p class="help">{{ t('montage.needs_key') }}</p>
+    <div class="check-row">
+      <label class="check-pill"><input type="checkbox" name="intro" value="1" checked><span>{{ t('montage.intro_card') }}</span></label>
+      <label class="check-pill"><input type="checkbox" name="outro" value="1" checked><span>{{ t('montage.outro_card') }}</span></label>
+      <label class="check-pill"><input type="checkbox" name="music" value="1"{% if not music %} disabled{% endif %}><span>{{ t('montage.music') }}</span></label>
+    </div>
+    <div class="form-grid">
+      <div class="field"><label for="m-title">{{ t('montage.lesson_title') }}</label><input class="input" id="m-title" name="title" maxlength="120" dir="auto" value="{{ selected.title if selected else '' }}"></div>
+      <div class="field"><label for="m-sub">{{ t('montage.subtitle') }}</label><input class="input" id="m-sub" name="subtitle" maxlength="120" dir="auto"></div>
+      <div class="field"><label for="m-outro">{{ t('montage.outro_text') }}</label><input class="input" id="m-outro" name="outro_text" maxlength="120" dir="auto"></div>
+      <div class="field"><label for="m-music">{{ t('montage.music_pick') }}</label>
+        <select class="input" id="m-music" name="music_asset_id"{% if not music %} disabled{% endif %}>{% for a in music %}<option value="{{ a.asset_id }}">{{ a.title }}</option>{% endfor %}</select>
+        {% if not music %}<p class="help">{{ t('montage.no_music') }}</p>{% endif %}</div>
+    </div>
+    <button class="btn btn-primary" type="submit">{{ icon('sparkle', 18) }}<span>{{ t('montage.start') }}</span></button>
+    <div class="htmx-indicator inline-loading" id="montage-indicator"><span class="spinner"></span>{{ t('montage.working') }}</div>
+  </form>
+  <div id="montage-area" aria-live="polite"></div>
+</section>
+{% endif %}
+
 {% if selected %}
 <section class="panel panel-pad" id="edit-panel" aria-labelledby="edit-title">
   <h2 class="panel-title" id="edit-title">{{ t('media.editing') }}: <span dir="auto">{{ selected.title }}</span></h2>
@@ -69,6 +110,8 @@
 </section>
 {% endif %}
 
+
+<h2 class="section-heading">{{ t('media.tools_title') }}</h2>
 <div class="studio-layout">
   <div class="stack">
     <section class="panel panel-pad" aria-labelledby="upload-title">
@@ -96,20 +139,21 @@
       </form>
     </section>
   </div>
-  <section class="panel panel-pad" aria-labelledby="video-gen-title">
-    <h2 class="panel-title" id="video-gen-title">{{ icon('sparkle', 18) }}<span>{{ t('video.gen_title') }}</span> <span class="badge badge-amber">{{ t('video.paid') }}</span></h2>
+  <section class="panel panel-pad" aria-labelledby="clip-title">
+    <h2 class="panel-title" id="clip-title">{{ icon('film', 18) }}<span>{{ t('video.gen_title') }}</span></h2>
     <p class="muted">{{ t('video.gen_text') }}</p>
-    <form class="form-stack" hx-post="{{ u('/media/video/generate') }}" hx-encoding="multipart/form-data" hx-target="#video-gen-area" hx-indicator="#video-gen-indicator">
-      <div class="field"><label for="video-prompt">{{ t('video.prompt') }}</label><textarea class="input" id="video-prompt" name="prompt" rows="3" required minlength="5" maxlength="800" dir="auto"></textarea></div>
+    <form class="form-stack" enctype="multipart/form-data" hx-post="{{ u('/media/video/generate') }}" hx-target="#clip-area" hx-indicator="#clip-indicator">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="field"><label for="c-prompt">{{ t('video.prompt') }}</label><textarea class="input" id="c-prompt" name="prompt" rows="3" required minlength="5" maxlength="800" dir="auto"></textarea></div>
       <div class="form-grid">
-        <div class="field"><label for="video-image">{{ t('video.image') }}</label><input class="input" id="video-image" type="file" name="image" accept="image/png,image/jpeg,image/webp"></div>
-        <div class="field"><label for="video-duration">{{ t('video.duration') }}</label><input class="input" id="video-duration" name="duration" type="number" min="2" max="6" value="5" dir="ltr"></div>
+        <div class="field"><label for="c-image">{{ t('video.image') }}</label><input class="input" id="c-image" type="file" name="image" accept="image/png,image/jpeg,image/webp"></div>
+        <div class="field"><label for="c-duration">{{ t('video.duration') }}</label><input class="input" id="c-duration" name="duration" type="number" min="2" max="6" value="5" dir="ltr"></div>
       </div>
-      <label class="check-pill"><input type="checkbox" name="audio" value="1"><span>{{ t('video.audio') }}</span></label>
-      <button class="btn btn-secondary" type="submit">{{ icon('sparkle', 18) }}<span>{{ t('video.generate') }}</span></button>
-      <div class="htmx-indicator inline-loading" id="video-gen-indicator"><span class="spinner"></span>{{ t('video.sending') }}</div>
+      <label class="check-pill"><input type="checkbox" name="audio" value="true"><span>{{ t('video.audio') }}</span></label>
+      <button class="btn btn-secondary" type="submit">{{ icon('film', 18) }}<span>{{ t('video.generate') }}</span></button>
+      <div class="htmx-indicator inline-loading" id="clip-indicator"><span class="spinner"></span>{{ t('video.sending') }}</div>
     </form>
-    <div id="video-gen-area" aria-live="polite"></div>
+    <div id="clip-area" aria-live="polite"></div>
   </section>
 </div>
 

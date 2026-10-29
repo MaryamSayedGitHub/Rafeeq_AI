@@ -1,0 +1,183 @@
+{
+ "schema_version": 2,
+ "diagram_type": "workflow",
+ "meta": {
+  "title": "Lesson studio: from brief to files",
+  "output": "lesson.html",
+  "quality_profile": "showcase",
+  "locale": "en"
+ },
+ "lanes": [
+  {
+   "id": "teacher",
+   "label": "Teacher"
+  },
+  {
+   "id": "agents",
+   "label": "LangGraph agents"
+  },
+  {
+   "id": "tools",
+   "label": "Tools (MCP) and files"
+  }
+ ],
+ "mainPath": [
+  "brief",
+  "orch",
+  "research",
+  "make",
+  "draft",
+  "approve",
+  "final",
+  "deck"
+ ],
+ "nodes": [
+  {
+   "id": "brief",
+   "lane": "teacher",
+   "col": 0,
+   "type": "frontend",
+   "label": "Brief",
+   "sublabel": "topic, level, needs"
+  },
+  {
+   "id": "orch",
+   "lane": "agents",
+   "col": 1,
+   "type": "backend",
+   "label": "Orchestrator",
+   "sublabel": "picks agents"
+  },
+  {
+   "id": "research",
+   "lane": "agents",
+   "col": 2,
+   "type": "backend",
+   "label": "Research",
+   "sublabel": "room pages first"
+  },
+  {
+   "id": "make",
+   "lane": "agents",
+   "col": 3,
+   "type": "backend",
+   "label": "Slides · Code · Quiz",
+   "sublabel": "only those asked"
+  },
+  {
+   "id": "draft",
+   "lane": "agents",
+   "col": 4,
+   "type": "backend",
+   "label": "Draft",
+   "sublabel": "one preview"
+  },
+  {
+   "id": "approve",
+   "lane": "teacher",
+   "col": 4,
+   "type": "security",
+   "label": "Approve?",
+   "sublabel": "graph pauses",
+   "tag": "≤ 3 revisions"
+  },
+  {
+   "id": "final",
+   "lane": "tools",
+   "col": 5,
+   "type": "backend",
+   "label": "Files",
+   "sublabel": "PPTX, code, quiz"
+  },
+  {
+   "id": "deck",
+   "lane": "teacher",
+   "col": 5,
+   "type": "frontend",
+   "label": "Presentations tab",
+   "sublabel": "edit, theme, export"
+  },
+  {
+   "id": "tavily",
+   "lane": "tools",
+   "col": 2,
+   "type": "cloud",
+   "label": "Tavily",
+   "sublabel": "web search"
+  },
+  {
+   "id": "runner",
+   "lane": "tools",
+   "col": 3,
+   "type": "messagebus",
+   "label": "Code runner",
+   "sublabel": "runs examples"
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "from": "brief",
+   "to": "orch"
+  },
+  {
+   "id": "e2",
+   "from": "orch",
+   "to": "research",
+   "variant": "emphasis"
+  },
+  {
+   "id": "e3",
+   "from": "research",
+   "to": "make"
+  },
+  {
+   "id": "e4",
+   "from": "make",
+   "to": "draft"
+  },
+  {
+   "id": "e5",
+   "from": "draft",
+   "to": "approve",
+   "label": "pause"
+  },
+  {
+   "id": "e6",
+   "from": "approve",
+   "to": "final",
+   "label": "approve",
+   "variant": "emphasis"
+  },
+  {
+   "id": "e7",
+   "from": "final",
+   "to": "deck",
+   "label": "open deck"
+  },
+  {
+   "id": "e8",
+   "from": "research",
+   "to": "tavily",
+   "label": "if needed",
+   "variant": "dashed",
+   "role": "branch"
+  },
+  {
+   "id": "e9",
+   "from": "make",
+   "to": "runner",
+   "label": "run",
+   "variant": "dashed",
+   "role": "branch"
+  },
+  {
+   "id": "e10",
+   "from": "approve",
+   "to": "orch",
+   "label": "revise",
+   "variant": "security",
+   "role": "return"
+  }
+ ]
+}

@@ -1,0 +1,28 @@
+{
+  "schema_version": 2, "diagram_type": "workflow",
+  "meta": { "title": "Sending reports to parents", "output": "reports.html", "quality_profile": "showcase", "locale": "en" },
+  "lanes": [
+    { "id": "teacher", "label": "Teacher" },
+    { "id": "server", "label": "Rafeeq" },
+    { "id": "parents", "label": "Parents" }
+  ],
+  "mainPath": ["sheet", "match", "drafts", "review", "email", "inbox"],
+  "nodes": [
+    { "id": "sheet", "lane": "teacher", "col": 0, "type": "frontend", "label": "Contacts", "sublabel": "CSV / Excel" },
+    { "id": "match", "lane": "server", "col": 1, "type": "backend", "label": "Match students", "sublabel": "unsure → skipped" },
+    { "id": "drafts", "lane": "server", "col": 2, "type": "backend", "label": "Drafts", "sublabel": "fixed Arabic text" },
+    { "id": "review", "lane": "teacher", "col": 3, "type": "security", "label": "Approve", "sublabel": "edit / skip" },
+    { "id": "email", "lane": "server", "col": 4, "type": "messagebus", "label": "Email", "sublabel": "SMTP" },
+    { "id": "wa", "lane": "teacher", "col": 4, "type": "frontend", "label": "WhatsApp", "sublabel": "teacher presses Send" },
+    { "id": "inbox", "lane": "parents", "col": 5, "type": "external", "label": "Parent", "sublabel": "signed link, 14 days" }
+  ],
+  "edges": [
+    { "id": "r1", "from": "sheet", "to": "match" },
+    { "id": "r2", "from": "match", "to": "drafts" },
+    { "id": "r3", "from": "drafts", "to": "review" },
+    { "id": "r4", "from": "review", "to": "email", "label": "approved", "variant": "emphasis" },
+    { "id": "r5", "from": "email", "to": "inbox" },
+    { "id": "r6", "from": "review", "to": "wa", "label": "approved", "variant": "emphasis", "role": "branch" },
+    { "id": "r7", "from": "wa", "to": "inbox", "variant": "dashed" }
+  ]
+}

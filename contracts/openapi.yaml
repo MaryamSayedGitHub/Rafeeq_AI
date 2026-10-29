@@ -810,12 +810,51 @@ paths:
       parameters:
         - { name: q, in: query, required: true, schema: { type: string, minLength: 2, maxLength: 300 } }
         - { name: top_k, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 10, default: 5 } }
+        - { name: room_id, in: query, required: false, schema: { type: string, maxLength: 60 } }
       responses:
         "200":
-          description: Sample file samples/video_search.json. Empty results (not an error) when search or embeddings are unavailable.
+          description: Sample file samples/video_search.json. Empty results (not an error) when search or embeddings are unavailable. A search with results is kept in the teacher's history (search_id).
           content:
             application/json:
               schema: { $ref: "#/components/schemas/VideoSearch" }
+
+  /teacher/videos/searches:
+    get:
+      tags: [M5 teacher]
+      operationId: listVideoSearches
+      summary: The teacher's earlier video searches, newest first (question, time, number of results).
+      parameters:
+        - { name: room_id, in: query, required: false, schema: { type: string, maxLength: 60 } }
+      responses:
+        "200":
+          description: At most 30 searches are kept per teacher.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VideoSearchHistory" }
+
+  /teacher/videos/searches/{search_id}:
+    get:
+      tags: [M5 teacher]
+      operationId: getVideoSearch
+      summary: One earlier search with its results as they were found; nothing is searched again.
+      parameters:
+        - { name: search_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "200":
+          description: The saved search.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SavedVideoSearch" }
+        "404": { description: No such search for this teacher. }
+    delete:
+      tags: [M5 teacher]
+      operationId: deleteVideoSearch
+      summary: Remove one search from the history.
+      parameters:
+        - { name: search_id, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Removed. }
+        "404": { description: No such search for this teacher. }
 
   /teacher/videos/generate:
     post:
@@ -2468,6 +2507,38 @@ components:
       additionalProperties: false
       required: [results]
       properties:
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/VideoMoment" }
+        search_id: { type: [string, "null"], description: "id in the history; null when nothing was kept (no results)" }
+
+    VideoSearchHistory:
+      type: object
+      additionalProperties: false
+      required: [searches]
+      properties:
+        searches:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [search_id, query, room_id, time, count]
+            properties:
+              search_id: { type: string }
+              query: { type: string }
+              room_id: { type: string }
+              time: { type: string, format: date-time }
+              count: { type: integer, minimum: 0 }
+
+    SavedVideoSearch:
+      type: object
+      additionalProperties: false
+      required: [search_id, query, room_id, time, results]
+      properties:
+        search_id: { type: string }
+        query: { type: string }
+        room_id: { type: string }
+        time: { type: string, format: date-time }
         results:
           type: array
           items: { $ref: "#/components/schemas/VideoMoment" }

@@ -1,114 +1,115 @@
 {% extends "layout.html" %}
 {% from "macros.html" import empty_state, project_bar with context %}
+{% from "learn/_icons.html" import item_icon with context %}
 {% block title %}{{ course.title }}{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
-    <a class="back-link" href="{{ u('/learning') }}">{{ icon('arrow', 16, 'back') }}<span>{{ t('course.title') }}</span></a>
+<a class="back-link" href="{{ u('/learning') }}">{{ icon('arrow', 16, 'back') }}<span>{{ t('course.title') }}</span></a>
+
+<section class="course-hero">
+  <div class="course-hero-text">
+    <p class="course-hero-status">{% if course.published_room_id %}<span class="badge badge-green">{{ t('course.published_to', room=proj.room_names.get(course.published_room_id, course.published_room_id)) }}</span>{% if course.unpublished_changes %} <span class="badge badge-amber">{{ t('course.changed') }}</span>{% endif %}{% else %}<span class="badge badge-gray">{{ t('course.draft') }}</span>{% endif %}</p>
     <h1 dir="auto">{{ course.title }}</h1>
     {% if course.description %}<p dir="auto">{{ course.description }}</p>{% endif %}
+    <p class="course-meta">{{ t('lp.modules', n=stats.modules) }} · {{ t('lp.videos', n=stats.videos) }} · {{ t('lp.materials', n=stats.materials) }}</p>
+    {% if class_progress %}<p class="course-meta">{{ icon('users', 14) }} {{ t('lp.class_progress', s=class_progress.started, c=class_progress.completed, a=class_progress.average) }}</p>{% endif %}
   </div>
-</div>
+  <div class="course-hero-actions">
+    <a class="btn btn-secondary" href="{{ u('/learning/' ~ course.course_id ~ '/preview') }}">{{ icon('film', 18) }}<span>{{ t('lp.preview') }}</span></a>
+    <form class="form-stack" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/publish') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <label class="sr-only" for="p-room">{{ t('course.room') }}</label>
+      <select class="input" id="p-room" name="room_id" required>
+        {% for r in proj.rooms %}<option value="{{ r.room_id }}" {% if course.published_room_id == r.room_id or (not course.published_room_id and course.room_id == r.room_id) %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-primary" type="submit" {% if not course.lessons or not proj.rooms %}disabled{% endif %}>{{ icon('send', 18) }}<span>{{ t('course.publish') if not course.published_room_id else t('course.republish') }}</span></button>
+    </form>
+    {% if course.published_room_id %}
+    <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/unpublish') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <button class="btn btn-secondary btn-sm" type="submit">{{ icon('x_circle', 16) }}<span>{{ t('course.unpublish') }}</span></button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% if course.unpublished_changes %}<div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('course.changed_help') }}</span></div>{% elif not course.published_room_id %}<p class="muted">{{ t('course.draft_help') }}</p>{% endif %}
 {% if pick %}<div class="inline-note">{{ icon('book', 16) }}<span>{{ t('course.picking_asset', title=pick.title) }}</span></div>{% endif %}
 
-<div class="studio-layout">
-  <div class="stack">
-    <section class="panel panel-pad" aria-labelledby="publish-title">
-      <h2 class="panel-title" id="publish-title">{{ t('course.publish_title') }}</h2>
-      {% if course.published_room_id %}
-        <p>{{ t('course.published_to', room=proj.room_names.get(course.published_room_id, course.published_room_id)) }}
-          <span dir="ltr" class="muted small">{{ course.published_at[:10] }}</span></p>
-        {% if course.unpublished_changes %}<div class="inline-note note-warning">{{ icon('alert', 16) }}<span>{{ t('course.changed_help') }}</span></div>{% endif %}
-      {% else %}
-        <p class="muted">{{ t('course.draft_help') }}</p>
-      {% endif %}
-      <form class="form-stack" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/publish') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <div class="field"><label for="p-room">{{ t('course.room') }}</label>
-          <select class="input" id="p-room" name="room_id" required>
-            {% for r in proj.rooms %}<option value="{{ r.room_id }}" {% if course.published_room_id == r.room_id or (not course.published_room_id and course.room_id == r.room_id) %}selected{% endif %}>{{ r.name }}</option>{% endfor %}
-          </select></div>
-        <button class="btn btn-primary" type="submit" {% if not course.lessons or not proj.rooms %}disabled{% endif %}>{{ icon('send', 18) }}<span>{{ t('course.publish') if not course.published_room_id else t('course.republish') }}</span></button>
-      </form>
-      {% if course.published_room_id %}
-      <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/unpublish') }}" class="inline-gap">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <button class="btn btn-secondary btn-sm" type="submit">{{ icon('x_circle', 16) }}<span>{{ t('course.unpublish') }}</span></button>
-      </form>
-      {% endif %}
-    </section>
-    <section class="panel panel-pad" aria-labelledby="details-title">
-      <h2 class="panel-title" id="details-title">{{ t('course.details') }}</h2>
-      <form class="form-stack" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/update') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <div class="field"><label for="u-title">{{ t('course.name') }}</label><input class="input" id="u-title" name="title" required minlength="2" maxlength="160" dir="auto" value="{{ course.title }}"></div>
-        <div class="field"><label for="u-desc">{{ t('course.description') }}</label><textarea class="input" id="u-desc" name="description" rows="3" maxlength="1000" dir="auto">{{ course.description }}</textarea></div>
-        <button class="btn btn-secondary" type="submit">{{ icon('check', 18) }}<span>{{ t('course.save') }}</span></button>
-      </form>
-      <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/delete') }}" class="inline-gap" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ t('course.confirm_delete') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <button class="btn btn-secondary btn-sm" type="submit">{{ icon('x_circle', 16) }}<span>{{ t('course.delete') }}</span></button>
-      </form>
-    </section>
-  </div>
-
-  <div class="stack">
-    {% for lesson in course.lessons %}
-    <section class="panel panel-pad lesson-card" id="lesson-{{ lesson.lesson_id }}">
-      <form class="form-stack" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/update') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <span class="slide-n">{{ t('course.lesson_n', n=loop.index) }}</span>
-        <div class="field"><label class="sr-only" for="lt-{{ lesson.lesson_id }}">{{ t('course.lesson_title') }}</label><input class="input" id="lt-{{ lesson.lesson_id }}" name="title" required minlength="2" maxlength="160" dir="auto" value="{{ lesson.title }}"></div>
-        <div class="field"><label class="sr-only" for="ln-{{ lesson.lesson_id }}">{{ t('course.lesson_notes') }}</label><textarea class="input" id="ln-{{ lesson.lesson_id }}" name="notes" rows="2" maxlength="2000" dir="auto" placeholder="{{ t('course.lesson_notes') }}">{{ lesson.notes }}</textarea></div>
-        <button class="btn btn-secondary btn-sm" type="submit">{{ icon('check', 16) }}<span>{{ t('course.save') }}</span></button>
-      </form>
-      <ul class="file-list lesson-assets">
-        {% for a in lesson.assets %}
-        <li>
-          <span class="file-cell">{{ icon('file', 18) }}<span dir="auto">{{ a.title }}</span><span class="badge badge-gray">{{ t('asset.kind.' ~ a.kind) }}</span></span>
-          <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/assets') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="remove" value="{{ a.asset_id }}">
-            <button class="btn btn-secondary btn-sm" type="submit" aria-label="{{ t('course.remove_asset') }}">{{ icon('x_circle', 16) }}</button>
-          </form>
-        </li>
-        {% else %}
-        <li><span class="muted small">{{ t('course.no_assets') }}</span></li>
-        {% endfor %}
-      </ul>
-      <form class="inline-form" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/assets') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <label class="sr-only" for="la-{{ lesson.lesson_id }}">{{ t('course.add_asset') }}</label>
-        <select class="input" id="la-{{ lesson.lesson_id }}" name="add" {% if not library %}disabled{% endif %}>
-          {% for a in library %}<option value="{{ a.asset_id }}" {% if pick and pick.asset_id == a.asset_id %}selected{% endif %}>{{ t('asset.kind.' ~ a.kind) }} · {{ a.title }}</option>{% endfor %}
-        </select>
-        <button class="btn btn-secondary btn-sm" type="submit" {% if not library %}disabled{% endif %}>{{ icon('plus', 16) }}<span>{{ t('course.add_asset') }}</span></button>
-      </form>
+<h2 class="section-heading">{{ t('lp.content') }}</h2>
+<div class="curriculum">
+  {% for lesson in course.lessons %}
+  {% set m = modules[loop.index0] %}
+  <section class="panel module-card" id="lesson-{{ lesson.lesson_id }}">
+    <header class="module-head">
+      <span class="lp-module-n">{{ t('lp.module_n', n=loop.index) }}</span>
       <div class="row-actions">
         <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/move') }}"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="direction" value="up">
           <button class="btn btn-secondary btn-sm" type="submit" {% if loop.first %}disabled{% endif %} aria-label="{{ t('course.move_up') }}">{{ icon('chevron', 16, 'up') }}</button></form>
         <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/move') }}"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="direction" value="down">
           <button class="btn btn-secondary btn-sm" type="submit" {% if loop.last %}disabled{% endif %} aria-label="{{ t('course.move_down') }}">{{ icon('chevron', 16, 'down') }}</button></form>
         <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/delete') }}"><input type="hidden" name="csrf_token" value="{{ csrf }}">
-          <button class="btn btn-secondary btn-sm" type="submit">{{ icon('x_circle', 16) }}<span>{{ t('course.remove_lesson') }}</span></button></form>
+          <button class="btn btn-secondary btn-sm" type="submit" aria-label="{{ t('course.remove_lesson') }}" title="{{ t('course.remove_lesson') }}">{{ icon('trash', 16) }}</button></form>
       </div>
-    </section>
-    {% else %}
-    <section class="panel panel-pad">{{ empty_state('book', t('course.no_lessons'), t('course.no_lessons_text')) }}</section>
-    {% endfor %}
+    </header>
+    <form class="form-stack" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/update') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="field"><label class="sr-only" for="lt-{{ lesson.lesson_id }}">{{ t('course.lesson_title') }}</label><input class="input module-title" id="lt-{{ lesson.lesson_id }}" name="title" required minlength="2" maxlength="160" dir="auto" value="{{ lesson.title }}"></div>
+      <div class="field"><label class="sr-only" for="ln-{{ lesson.lesson_id }}">{{ t('course.lesson_notes') }}</label><textarea class="input" id="ln-{{ lesson.lesson_id }}" name="notes" rows="2" maxlength="2000" dir="auto" placeholder="{{ t('lp.notes_placeholder') }}">{{ lesson.notes }}</textarea></div>
+      <button class="btn btn-secondary btn-sm" type="submit">{{ icon('check', 16) }}<span>{{ t('course.save') }}</span></button>
+    </form>
+    <ul class="module-items">
+      {% for i in m['items'] if i.type != 'reading' %}
+      <li>
+        <span class="lp-item-icon">{{ item_icon(i) }}</span>
+        <span class="lp-item-text"><span dir="auto">{{ i.title }}</span><small>{{ t('lp.type.' ~ i.type) }}{% if i.kind %} · {{ t('asset.kind.' ~ i.kind) }}{% endif %}</small></span>
+        <a class="btn btn-secondary btn-sm" href="{{ u('/learning/' ~ course.course_id ~ '/preview', item=i.id) }}" aria-label="{{ t('lp.preview') }}" title="{{ t('lp.preview') }}">{{ icon('film', 16) }}</a>
+        <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/assets') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="remove" value="{{ i.id.split(':')[1] }}">
+          <button class="btn btn-secondary btn-sm" type="submit" aria-label="{{ t('course.remove_asset') }}" title="{{ t('course.remove_asset') }}">{{ icon('x_circle', 16) }}</button>
+        </form>
+      </li>
+      {% else %}
+      <li class="muted small">{{ t('course.no_assets') }}</li>
+      {% endfor %}
+    </ul>
+    <form class="inline-form" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons/' ~ lesson.lesson_id ~ '/assets') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <label class="sr-only" for="la-{{ lesson.lesson_id }}">{{ t('course.add_asset') }}</label>
+      <select class="input" id="la-{{ lesson.lesson_id }}" name="add" {% if not library %}disabled{% endif %}>
+        {% for a in library %}<option value="{{ a.asset_id }}" {% if pick and pick.asset_id == a.asset_id %}selected{% endif %}>{{ t('asset.kind.' ~ a.kind) }} · {{ a.title }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-secondary btn-sm" type="submit" {% if not library %}disabled{% endif %}>{{ icon('plus', 16) }}<span>{{ t('course.add_asset') }}</span></button>
+    </form>
+  </section>
+  {% else %}
+  <section class="panel panel-pad">{{ empty_state('book', t('course.no_lessons'), t('course.no_lessons_text')) }}</section>
+  {% endfor %}
 
-    <section class="panel panel-pad" aria-labelledby="add-lesson-title">
-      <h2 class="panel-title" id="add-lesson-title">{{ t('course.add_lesson') }}</h2>
-      <form class="form-stack" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf }}">
-        <div class="field"><label for="nl-title">{{ t('course.lesson_title') }}</label><input class="input" id="nl-title" name="title" required minlength="2" maxlength="160" dir="auto" value="{{ proj.session.topic if proj.session else '' }}"></div>
-        <div class="field"><label for="nl-notes">{{ t('course.lesson_notes') }} <span class="muted">({{ t('optional') }})</span></label><textarea class="input" id="nl-notes" name="notes" rows="2" maxlength="2000" dir="auto"></textarea></div>
-        <div class="field"><label for="nl-session">{{ t('course.from_lesson') }}</label>
-          <select class="input" id="nl-session" name="session_id"><option value="">{{ t('course.no_session') }}</option>
-            {% for s in proj.sessions %}<option value="{{ s.session_id }}" {% if proj.session and proj.session.session_id == s.session_id %}selected{% endif %}>{{ s.topic }}</option>{% endfor %}</select>
-          <p class="help">{{ t('course.from_lesson_help') }}</p></div>
-        <button class="btn btn-primary" type="submit">{{ icon('plus', 18) }}<span>{{ t('course.add_lesson') }}</span></button>
-      </form>
-    </section>
-  </div>
+  <section class="panel panel-pad module-card module-new" aria-labelledby="add-lesson-title">
+    <h2 class="panel-title" id="add-lesson-title">{{ icon('plus', 18) }}<span>{{ t('lp.add_module') }}</span></h2>
+    <form class="form-stack" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/lessons') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf }}">
+      <div class="field"><label for="nl-title">{{ t('course.lesson_title') }}</label><input class="input" id="nl-title" name="title" required minlength="2" maxlength="160" dir="auto" value="{{ proj.session.topic if proj.session else '' }}"></div>
+      <div class="field"><label for="nl-notes">{{ t('course.lesson_notes') }} <span class="muted">({{ t('optional') }})</span></label><textarea class="input" id="nl-notes" name="notes" rows="2" maxlength="2000" dir="auto"></textarea></div>
+      <div class="field"><label for="nl-session">{{ t('course.from_lesson') }}</label>
+        <select class="input" id="nl-session" name="session_id"><option value="">{{ t('course.no_session') }}</option>
+          {% for s in proj.sessions %}<option value="{{ s.session_id }}" {% if proj.session and proj.session.session_id == s.session_id %}selected{% endif %}>{{ s.topic }}</option>{% endfor %}</select>
+        <p class="help">{{ t('course.from_lesson_help') }}</p></div>
+      <button class="btn btn-primary" type="submit">{{ icon('plus', 18) }}<span>{{ t('course.add_lesson') }}</span></button>
+    </form>
+  </section>
 </div>
+
+<details class="panel panel-pad course-settings">
+  <summary class="panel-title">{{ icon('settings', 18) }}<span>{{ t('lp.settings') }}</span></summary>
+  <form class="form-stack" method="post" action="{{ u('/learning/' ~ course.course_id ~ '/update') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <div class="field"><label for="u-title">{{ t('course.name') }}</label><input class="input" id="u-title" name="title" required minlength="2" maxlength="160" dir="auto" value="{{ course.title }}"></div>
+    <div class="field"><label for="u-desc">{{ t('course.description') }}</label><textarea class="input" id="u-desc" name="description" rows="3" maxlength="1000" dir="auto">{{ course.description }}</textarea></div>
+    <button class="btn btn-secondary" type="submit">{{ icon('check', 18) }}<span>{{ t('course.save') }}</span></button>
+  </form>
+  <form method="post" action="{{ u('/learning/' ~ course.course_id ~ '/delete') }}" class="inline-gap" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{{ t('course.confirm_delete') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button class="btn btn-secondary btn-sm" type="submit">{{ icon('trash', 16) }}<span>{{ t('course.delete') }}</span></button>
+  </form>
+</details>
 {% endblock %}

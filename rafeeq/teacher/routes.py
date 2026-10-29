@@ -35,7 +35,7 @@ from rafeeq.samples import load_sample
 from rafeeq.teacher.lecturer.controller import RevisionLimitReached, SessionNotFound, SessionNotWaiting
 from rafeeq.teacher.lecturer.long_term_store import get_profile, list_sessions, load_memory, put_profile
 from rafeeq.teacher import assets as asset_lib
-from rafeeq.teacher import class_report, inbox, parent_batch, parent_delivery, parent_report
+from rafeeq.teacher import class_report, inbox, parent_batch, parent_delivery, parent_report, video_history
 from rafeeq.teacher.lecturer import video_discovery, video_gen, youtube_discovery
 from rafeeq.teacher.lecturer.schemas import ApproveRequest as Decision
 from rafeeq.teacher.lecturer.schemas import SessionRequest
@@ -215,13 +215,41 @@ def list_sessions_api(svc: Service, authorization: Auth = None, teacher_id: str 
 
 @router.get("/teacher/videos/search")
 def search_videos_api(
+    svc: Service,
     q: str = Query(min_length=2, max_length=300),
     top_k: int = Query(5, ge=1, le=10),
+    room_id: str = Query("", max_length=60),
+    authorization: Auth = None,
 ):
     """Real YouTube videos, found and ranked by meaning, opening at the exact timestamp
     that answers the question (Madrasa-spec Feature 2). Empty list (not an error) when
-    YOUTUBE_API_KEY/Postgres/Gemini are unavailable."""
-    return {"results": youtube_discovery.search(q, top_k=top_k)}
+    YOUTUBE_API_KEY/Postgres/Gemini are unavailable. A search with results is kept in the
+    teacher's history (video_history.py), so it can be reopened without searching again."""
+    teacher_id = teacher_for(authorization, "")
+    results = youtube_discovery.search(q, top_k=top_k)
+    search_id = video_history.save(svc.store, teacher_id, q, results, room_id)
+    return {"results": results, "search_id": search_id}
+
+
+@router.get("/teacher/videos/searches")
+def video_searches_api(svc: Service, room_id: str = Query("", max_length=60), authorization: Auth = None):
+    """The teacher's earlier searches, newest first (only the question, time and number of results)."""
+    return {"searches": video_history.list_searches(svc.store, teacher_for(authorization, ""), room_id)}
+
+
+@router.get("/teacher/videos/searches/{search_id}")
+def video_search_api(svc: Service, search_id: str, authorization: Auth = None):
+    """One earlier search with its results, exactly as they were found (nothing is searched again)."""
+    found = video_history.get_search(svc.store, teacher_for(authorization, ""), search_id)
+    if found is None:
+        raise HTTPException(404, "Search not found")
+    return found
+
+
+@router.delete("/teacher/videos/searches/{search_id}", status_code=204)
+def video_search_delete_api(svc: Service, search_id: str, authorization: Auth = None):
+    if not video_history.delete_search(svc.store, teacher_for(authorization, ""), search_id):
+        raise HTTPException(404, "Search not found")
 
 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024

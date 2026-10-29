@@ -60,6 +60,8 @@ def normalize_phone(raw: str) -> str:
         digits = digits[2:]
     elif digits.startswith("0"):
         digits = "20" + digits[1:]
+    elif re.fullmatch(r"1[0125]\d{8}", digits):          # an Egyptian mobile whose leading 0 was lost (Excel stores 01012345678 as a number)
+        digits = "20" + digits
     if not 8 <= len(digits) <= 15:
         raise ValueError("phone")
     return digits

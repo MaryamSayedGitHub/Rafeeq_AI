@@ -1,0 +1,28 @@
+{
+  "schema_version": 2, "diagram_type": "workflow",
+  "meta": { "title": "Voice to Visual", "output": "voice.html", "quality_profile": "showcase", "locale": "en", "animation": "trace" },
+  "lanes": [
+    { "id": "teacher", "label": "Teacher" },
+    { "id": "ai", "label": "Rafeeq AI" },
+    { "id": "draw", "label": "Pictures" }
+  ],
+  "mainPath": ["rec", "caps", "pick", "clean", "draw", "timeline"],
+  "nodes": [
+    { "id": "rec", "lane": "teacher", "col": 0, "type": "frontend", "label": "Recording", "sublabel": "in the editor" },
+    { "id": "caps", "lane": "ai", "col": 1, "type": "backend", "label": "Captions", "sublabel": "from the audio" },
+    { "id": "pick", "lane": "ai", "col": 2, "type": "backend", "label": "Pick moments", "sublabel": "LLM, then Gemini" },
+    { "id": "clean", "lane": "ai", "col": 3, "type": "security", "label": "Clean plan", "sublabel": "no overlap" },
+    { "id": "draw", "lane": "draw", "col": 4, "type": "cloud", "label": "Diagram / picture", "sublabel": "Wan" },
+    { "id": "gif", "lane": "draw", "col": 3, "type": "cloud", "label": "Animation", "sublabel": "Giphy" },
+    { "id": "timeline", "lane": "teacher", "col": 5, "type": "frontend", "label": "On the timeline", "sublabel": "at the spoken second", "tag": "she edits" }
+  ],
+  "edges": [
+    { "id": "v1", "from": "rec", "to": "caps" },
+    { "id": "v2", "from": "caps", "to": "pick", "label": "timed lines" },
+    { "id": "v3", "from": "pick", "to": "clean" },
+    { "id": "v4", "from": "clean", "to": "draw", "label": "diagram" },
+    { "id": "v5", "from": "clean", "to": "gif", "label": "animation", "variant": "dashed", "role": "branch" },
+    { "id": "v6", "from": "draw", "to": "timeline", "variant": "emphasis" },
+    { "id": "v7", "from": "gif", "to": "timeline", "variant": "dashed", "role": "return" }
+  ]
+}
