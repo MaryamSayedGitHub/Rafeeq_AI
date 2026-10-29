@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from rafeeq.teacher import assets as asset_lib
-from rafeeq.teacher import courses, decks, media_tools, montage, story_video, themes, visuals
+from rafeeq.teacher import course_progress, courses, decks, media_tools, montage, story_video, themes, visuals, voice_visual
 from rafeeq.teacher.lecturer import image_gen
 from rafeeq.teacher.lecturer.long_term_store import get_profile, list_sessions
 from rafeeq.teacher.routes import Auth, Service, _owner, asset_view
@@ -449,6 +449,98 @@ def montage_transcribe_api(svc: Service, asset_id: str, authorization: Auth = No
         raise _media_error(e) from None
 
 
+class VoiceVisualRequest(BaseModel):
+    segments: list[dict] | None = Field(default=None, max_length=3000)     # the editor's captions; None = transcribe now
+
+
+@router.post("/teacher/media/{asset_id}/montage/visuals")
+def montage_voice_visuals_api(svc: Service, asset_id: str, body: VoiceVisualRequest, authorization: Auth = None):
+    """Voice-to-Visual for the editor: read what the lecturer says and start a picture for each moment that needs one.
+    Diagrams and illustrations are drawn by the image model (poll GET /teacher/visuals/{task_id}); animations come
+    from Giphy at once. Times are on the ORIGINAL video. Nothing is placed until the lecturer renders."""
+    owner = _owner(authorization)
+    source, path = _montage_source(svc, owner, asset_id)
+    try:
+        total = montage.probe(path)["seconds"]
+        transcribed = body.segments is None
+        if transcribed:
+            with tempfile.TemporaryDirectory() as tmp:
+                segments = montage.transcribe_for_editor(path, Path(tmp))["segments"]
+        else:
+            segments = montage.clean_segments(body.segments, total)
+    except media_tools.MediaError as e:
+        raise _media_error(e) from None
+    if not segments:
+        raise HTTPException(422, "No speech was found in this video")
+    planners = []                                                    # the app's LLM first, then Gemini (it already wrote the captions)
+    try:
+        from rafeeq.knowledge.topics.room_topics import default_propose
+        if (main := default_propose()) is not None:
+            planners.append(("llm", main))
+    except Exception:                                               # noqa: BLE001
+        pass
+    if voice_visual.gemini_available():
+        planners.append(("gemini", voice_visual.gemini_propose))
+    if not planners:
+        raise HTTPException(503, "Voice-to-Visual needs an LLM: set LLM_API_KEY or GOOGLE_API_KEY in .env")
+    plan, errors, planner = [], [], ""
+    for name, propose in planners:
+        try:
+            plan = voice_visual.plan_visuals(segments, total, propose)
+        except voice_visual.PlanError as e:
+            log.warning("voice-to-visual: %s failed: %s", name, e)
+            errors.append(f"{name}: {e}")
+            continue
+        planner = name
+        if plan:
+            break
+        log.warning("voice-to-visual: %s found no moments, trying the next model", name)
+    if not plan and errors and len(errors) == len(planners):
+        raise HTTPException(502, "The AI could not plan the visuals (" + "; ".join(errors)[:300] + ")")
+
+    out = []
+    for item in plan:
+        view = {k: item[k] for k in ("start", "end", "kind", "label")}
+        if item["kind"] == "animation":
+            try:
+                gifs = montage.giphy_search(item["query"], limit=1)
+            except media_tools.MediaError:
+                gifs = []
+            if gifs:
+                g = gifs[0]
+                out.append({**view, "status": "ready", "src": {"giphy": g["url"]}, "url": g["url"], "thumb": g["thumb"],
+                            "ratio": g["h"] / g["w"]})
+                continue
+            item = {**item, "kind": "illustration", "prompt": item["prompt"] or item["label"]}   # no GIF: draw it instead
+            view["kind"] = "illustration"
+        prompt = voice_visual.image_prompt(item)
+        key = voice_visual.job_key(source["asset_id"], item)
+        existing = asset_lib.find_by_key(svc.store, owner, key)
+        if existing and existing["status"] == "ready" and asset_lib.asset_file(existing):
+            out.append({**view, "status": "ready", "src": {"asset_id": existing["asset_id"]}, "asset_id": existing["asset_id"]})
+            continue
+        if existing and existing["status"] == "pending" and not asset_lib.is_stale_pending(existing):
+            out.append({**view, "status": "pending", "src": {"asset_id": existing["asset_id"]}, "asset_id": existing["asset_id"],
+                        "task_id": existing["settings"].get("task_id", "")})
+            continue
+        result = image_gen.submit_task(prompt)
+        if not result["ok"]:
+            out.append({**view, "status": "failed", "error": result["error"][:200]})
+            continue
+        used = {"task_id": result["task_id"], "prompt": prompt, "voice_visual": True, "source_asset_id": source["asset_id"],
+                "start": item["start"], "kind": item["kind"]}
+        if existing:
+            asset = asset_lib.update_asset(svc.store, owner, existing["asset_id"], status="pending", error="", settings=used)
+        else:
+            asset = asset_lib.register_asset(
+                svc.store, owner, kind="image", title=f"{item['label']} (voice-to-visual)"[:200], origin="ai_generated",
+                provider="qwencloud", model=result["model"], settings_used=used, status="pending",
+                room_id=source.get("room_id", ""), session_id=source.get("session_id", ""), idempotency_key=key)
+        out.append({**view, "status": "pending", "src": {"asset_id": asset["asset_id"]}, "asset_id": asset["asset_id"],
+                    "task_id": result["task_id"]})
+    return {"visuals": out, "segments": segments if transcribed else None, "planned": len(plan), "planner": planner}
+
+
 @router.post("/teacher/media/{asset_id}/montage", status_code=201)
 def montage_start_api(svc: Service, asset_id: str, body: MontageRequest, authorization: Auth = None):
     """Start a montage of one of the teacher's videos. Returns the new (pending) library video; poll
@@ -723,6 +815,48 @@ def room_courses_api(svc: Service, room_id: str, authorization: Auth = None):
         out.append({"course_id": c["course_id"], "title": c["title"], "description": c["description"],
                     "published_at": c["published_at"], "lessons": lessons})
     return {"courses": out}
+
+
+class ProgressMark(BaseModel):
+    item_id: str = Field(min_length=3, max_length=120)
+    done: bool = True
+    opened: bool = False          # true = only remember where the student is, do not change what is finished
+
+
+def _published_course(svc, room_id: str, course_id: str) -> dict:
+    found = next((c for c in courses.published_for_room(svc.store, room_id) if c["course_id"] == course_id), None)
+    if found is None:
+        raise HTTPException(404, "Course not found")
+    return found
+
+
+@router.get("/rooms/{room_id}/courses/{course_id}/progress")
+def course_progress_api(svc: Service, room_id: str, course_id: str, authorization: Auth = None):
+    """The caller's own progress in a published course: finished items, where they stopped, and the percent."""
+    user = _member_of(authorization, room_id)
+    course = _published_course(svc, room_id, course_id)
+    mine = course_progress.get(svc.store, room_id, user["user_id"], course_id)
+    return {**mine, "percent": course_progress.percent(mine["done"], course), "total": len(course_progress.item_ids(course))}
+
+
+@router.post("/rooms/{room_id}/courses/{course_id}/progress")
+def course_progress_mark_api(svc: Service, room_id: str, course_id: str, body: ProgressMark, authorization: Auth = None):
+    """Mark one item finished / not finished (or only opened). Unknown items are ignored."""
+    user = _member_of(authorization, room_id)
+    course = _published_course(svc, room_id, course_id)
+    mine = course_progress.mark(svc.store, room_id, user["user_id"], course, body.item_id, done=body.done, opened=body.opened)
+    return {**mine, "percent": course_progress.percent(mine["done"], course), "total": len(course_progress.item_ids(course))}
+
+
+@router.get("/teacher/courses/{course_id}/progress")
+def course_class_progress_api(svc: Service, course_id: str, authorization: Auth = None):
+    """For the teacher: how the room's students are doing in the published version of this course."""
+    owner = _owner(authorization)
+    c = _course_or_404(svc, owner, course_id)
+    room_id = c.get("published_room_id", "")
+    if not room_id:
+        return {"room_id": "", "started": 0, "completed": 0, "average": 0}
+    return {"room_id": room_id, **course_progress.summary(svc.store, room_id, _published_course(svc, room_id, course_id))}
 
 
 @router.get("/rooms/{room_id}/courses/{course_id}/assets/{asset_id}/file")

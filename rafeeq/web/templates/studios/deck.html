@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% from "macros.html" import section_state, studio_links, project_bar with context %}
+{% from "macros.html" import section_state, studio_links, project_bar, studio_subtabs with context %}
 {% block title %}{{ deck.title if deck else t('deck.title') }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -14,6 +14,7 @@
   </form>
   {% endif %}
 </div>
+{{ studio_subtabs('presentations', deck.room_id if deck and deck.room_id else '') }}
 
 {% if not deck %}
   <section class="panel panel-pad">{{ section_state(t, res) }}</section>

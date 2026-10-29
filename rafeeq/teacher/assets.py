@@ -257,6 +257,7 @@ def backfill_sessions(store, teacher_id: str) -> int:
 # ------------------------------------------------------------------ files
 def _resolve(root: str, ref: str) -> Path:
     base = _root_dir(root)
+    base = base.resolve() if base is not None else None   # compare real paths (Windows 8.3 short names, symlinks)
     if base is None:
         raise AssetError("This asset has no stored file")
     path = (base / ref).resolve()

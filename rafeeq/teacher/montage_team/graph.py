@@ -96,8 +96,13 @@ def run_team(src, work, opts: dict, *, music_file=None, transcribe=None, propose
     """Run the team. Returns {'file','srt','captions','chapters','cut','notes','seconds','agents','plan'}."""
     deps: dict[str, Any] = {"music_file": music_file, "transcribe": transcribe, "propose": propose, "progress": progress,
                        "sticker_files": sticker_files or {}, "fetch": fetch}
+    from rafeeq.observability import langchain_callbacks
+
     config = {"configurable": {"deps": deps}, "tags": ["rafeeq", "teacher", "montage"], "run_name": "montage-team",
-              "metadata": {"montage_title": str(opts.get("title", ""))[:60]}}
+              "metadata": {"montage_title": str(opts.get("title", ""))[:60], "langfuse_tags": ["rafeeq", "teacher", "montage"]}}
+    callbacks = langchain_callbacks()
+    if callbacks:
+        config["callbacks"] = callbacks
     state = {"src": src, "work": work, "opts": opts, "notes": [], "trace": []}
     graph = _get_graph() if use_langgraph else None
     out = graph.invoke(state, config) if graph is not None else _run_plain(state, config)

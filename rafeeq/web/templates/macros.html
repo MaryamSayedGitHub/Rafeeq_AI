@@ -67,6 +67,14 @@
 </form>
 {% endmacro %}
 
+{# The Lesson studio has two parts: making the lesson, and its presentations. `room_id` keeps the room the teacher is in. #}
+{% macro studio_subtabs(active, room_id='') %}
+<nav class="subtabs" aria-label="{{ t('nav.studio') }}">
+  <a class="subtab {% if active == 'lesson' %}active{% endif %}" href="{{ u('/rooms/' ~ room_id ~ '/studio') if room_id else u('/studio') }}" {% if active == 'lesson' %}aria-current="page"{% endif %}>{{ icon('sparkle', 16) }}<span>{{ t('studio.sub.lesson') }}</span></a>
+  <a class="subtab {% if active == 'presentations' %}active{% endif %}" href="{{ u('/presentations', room=room_id) if room_id else u('/presentations') }}" {% if active == 'presentations' %}aria-current="page"{% endif %}>{{ icon('presentation', 16) }}<span>{{ t('studio.sub.presentations') }}</span></a>
+</nav>
+{% endmacro %}
+
 {# Links from one studio to the others for the current lesson/room/asset. `q` is a dict of query params. #}
 {% macro studio_links(q) %}
 <div class="asset-actions">

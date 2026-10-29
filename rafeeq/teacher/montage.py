@@ -30,6 +30,7 @@ from typing import Callable
 
 from rafeeq.teacher import assets as asset_lib
 from rafeeq.teacher.media_tools import MediaError, ffmpeg_path
+from rafeeq.observability import traced
 
 log = logging.getLogger(__name__)
 
@@ -38,9 +39,11 @@ MIN_SILENCE = 0.8         # seconds; shorter pauses are kept (they are natural)
 PAD = 0.2                 # seconds of silence kept around speech, so words are not clipped
 MIN_KEEP = 0.3            # a piece of speech shorter than this is dropped
 MAX_SEGMENTS = 120        # more pieces than this are merged (the ffmpeg command stays small)
-MAX_SECONDS = 30 * 60     # longest video accepted
+MAX_SECONDS = 90 * 60     # longest video accepted
+CHUNK_SECONDS = 5 * 60    # speech is sent to Gemini in pieces this long: a longer reply gets cut off mid-JSON
+CHUNK_WORKERS = 3
 CARD_SECONDS = 3.0
-FFMPEG_TIMEOUT = 1800
+FFMPEG_TIMEOUT = 7200       # a 90 minute lecture can take a while to render on a laptop
 MAX_TITLE = 120
 MAX_CHAPTERS = 8
 MAX_STICKERS = 12         # animated pictures (GIF / sticker) on one video
@@ -183,6 +186,15 @@ TRANSCRIBE_PROMPT = (
 
 
 def _gemini_json(parts: list[dict], model: str) -> dict:
+    return json.loads(_strip_fence(_gemini_text(parts, model)))
+
+
+def _strip_fence(text: str) -> str:
+    return re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip()
+
+
+def _gemini_text(parts: list[dict], model: str) -> str:
+    """The raw text Gemini answers (JSON mode). Raises MediaError for a missing key or too many requests."""
     import httpx
 
     key = os.environ.get("GOOGLE_API_KEY", "").strip()
@@ -196,20 +208,99 @@ def _gemini_json(parts: list[dict], model: str) -> dict:
     if res.status_code == 429:
         raise MediaError("Gemini says too many requests; wait a minute and try again")
     res.raise_for_status()
-    text = "".join(p.get("text", "") for p in res.json()["candidates"][0]["content"]["parts"])
-    return json.loads(re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.MULTILINE).strip())
+    cand = res.json()["candidates"][0]
+    text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts", []))
+    if cand.get("finishReason") not in (None, "STOP"):
+        log.warning("gemini: answer ended with %s after %d characters", cand.get("finishReason"), len(text))
+    return text
 
 
+_SEG_RE = re.compile(r'\{\s*"start"\s*:\s*(-?[\d.]+)\s*,\s*"end"\s*:\s*(-?[\d.]+)\s*,\s*"text"\s*:\s*("(?:[^"\\]|\\.)*")\s*\}')
+
+
+def salvage_segments(text: str) -> list[dict]:
+    """The complete caption lines of an answer that was cut off (or slightly broken) half way through."""
+    out = []
+    for a, b, t in _SEG_RE.findall(text or ""):
+        try:
+            out.append({"start": float(a), "end": float(b), "text": json.loads(t)})
+        except ValueError:
+            continue
+    return out
+
+
+def _transcribe_piece(audio: Path, model: str) -> list[dict]:
+    parts = [{"text": TRANSCRIBE_PROMPT},
+             {"inlineData": {"mimeType": "audio/mp3", "data": base64.b64encode(audio.read_bytes()).decode()}}]
+    last = "no answer"
+    for _ in range(2):                                               # one more try: a broken answer is usually a fluke
+        try:
+            text = _gemini_text(parts, model)
+        except MediaError:
+            raise
+        except Exception as e:                                       # noqa: BLE001
+            last = type(e).__name__
+            continue
+        try:
+            data = json.loads(_strip_fence(text))
+            if isinstance(data, dict) and isinstance(data.get("segments"), list):
+                return data["segments"]
+            if isinstance(data, list):
+                return data
+        except ValueError:
+            pass
+        saved = salvage_segments(text)
+        if saved:
+            log.warning("montage: Gemini's captions were cut off; kept the %d complete lines", len(saved))
+            return saved
+        last = "the answer was not JSON"
+    raise MediaError(f"The captions could not be made ({last})")
+
+
+@traced("montage.transcribe", "generation")
 def gemini_transcribe(audio: Path) -> list[dict]:
+    """Timed caption lines of the whole audio. A long lecture is cut into CHUNK_SECONDS pieces, written in
+    parallel, and the times are moved back onto the full audio."""
     model = os.getenv("MONTAGE_STT_MODEL") or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
     try:
-        data = _gemini_json([{"text": TRANSCRIBE_PROMPT},
-                             {"inlineData": {"mimeType": "audio/mp3", "data": base64.b64encode(audio.read_bytes()).decode()}}], model)
+        total = probe_audio_seconds(audio)
     except MediaError:
-        raise
-    except Exception as e:                                           # noqa: BLE001
-        raise MediaError(f"The captions could not be made ({type(e).__name__})") from None
-    return data.get("segments", []) if isinstance(data, dict) else []
+        total = 0.0
+    if total <= CHUNK_SECONDS * 1.4:
+        return _transcribe_piece(audio, model)
+    from concurrent.futures import ThreadPoolExecutor
+
+    starts = [i * CHUNK_SECONDS for i in range(int(total // CHUNK_SECONDS) + 1) if total - i * CHUNK_SECONDS > 1]
+    pieces = []
+    for i, a in enumerate(starts):
+        dst = audio.with_name(f"{audio.stem}_part{i}.mp3")
+        _run([_exe(), "-y", "-hide_banner", "-loglevel", "error", "-ss", f"{a:.3f}", "-t", f"{CHUNK_SECONDS:.3f}", "-i", str(audio),
+              "-c", "copy", str(dst)])
+        pieces.append((a, dst))
+    def one(piece):
+        try:
+            return _transcribe_piece(piece[1], model)
+        except MediaError as e:                                      # one bad piece must not lose the whole lecture
+            log.warning("montage: captions of the piece at %.0fs failed: %s", piece[0], e)
+            return e
+
+    with ThreadPoolExecutor(max_workers=CHUNK_WORKERS) as pool:
+        results = list(pool.map(one, pieces))
+    if all(isinstance(r, MediaError) for r in results):
+        raise results[0]
+    out = []
+    for (offset, _), segs in zip(pieces, results):
+        for s in segs if isinstance(segs, list) else []:
+            try:
+                out.append({**s, "start": float(s["start"]) + offset, "end": float(s["end"]) + offset})
+            except (KeyError, TypeError, ValueError):
+                continue
+    return out
+
+
+def probe_audio_seconds(path: Path) -> float:
+    out = _run([_exe("ffprobe"), "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)], timeout=60).stdout
+    return float(json.loads(out)["format"]["duration"])
 
 
 def clean_segments(raw: list[dict], total: float) -> list[dict]:
@@ -267,7 +358,7 @@ def clean_chapters(raw, total: float) -> list[dict]:
 def make_chapters(segments: list[dict], total: float, propose: Callable | None) -> list[dict]:
     if not segments or propose is None:
         return []
-    lines = "\n".join(f"{s['start']:.0f}s: {s['text']}" for s in segments)[:24000]
+    lines = "\n".join(f"{s['start']:.0f}s: {s['text']}" for s in segments)[:80000]
     try:
         out = propose(CHAPTER_SYSTEM, lines) or {}
     except Exception:                                                # noqa: BLE001

@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% from "macros.html" import section_state %}
+{% from "macros.html" import section_state, studio_subtabs with context %}
 {% block title %}{{ t('tab.studio') }} · {{ room.name }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -8,6 +8,7 @@
     <p>{{ t('studio.intro') }}</p>
   </div>
 </div>
+{{ studio_subtabs('lesson', room.room_id) }}
 <div class="inline-note">{{ icon('info', 16) }}<span>{{ t('studio.other_studios') }}</span></div>
 
 <div class="studio-layout">

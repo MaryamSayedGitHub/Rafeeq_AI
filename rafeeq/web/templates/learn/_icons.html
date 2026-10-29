@@ -1,0 +1,6 @@
+{# The icon for one course item (video, reading, slides...). #}
+{% macro item_icon(i, size=18) -%}
+{%- set by_kind = {'pptx': 'presentation', 'code': 'code', 'quiz': 'quiz', 'audio': 'clip', 'image': 'image'} -%}
+{%- set by_type = {'video': 'film', 'youtube': 'film', 'link': 'globe', 'reading': 'book', 'audio': 'clip', 'image': 'image'} -%}
+{{ icon(by_type.get(i.type) or by_kind.get(i.kind) or 'file', size) }}
+{%- endmacro %}

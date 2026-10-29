@@ -1,0 +1,114 @@
+{% extends "layout.html" %}
+{% from "learn/_icons.html" import item_icon with context %}
+{% block title %}{{ course.title }}{% endblock %}
+{% block content %}
+{# M5 learning platform: the course player (students), or the teacher's preview of the draft. #}
+<div class="lp">
+  <header class="lp-head">
+    <a class="back-link" href="{{ back }}">{{ icon('arrow', 16, 'back') }}<span>{{ t('lp.back_courses') if mode != 'preview' else t('course.title') }}</span></a>
+    <div class="lp-head-row">
+      <div>
+        <h1 dir="auto">{{ course.title }}</h1>
+        <p class="lp-stats">{{ t('lp.modules', n=stats.modules) }} · {{ t('lp.videos', n=stats.videos) }} · {{ t('lp.materials', n=stats.materials) }}</p>
+      </div>
+      {% if mode == 'student' %}
+      <div class="lp-progress" aria-label="{{ t('lp.complete_pct', n=percent) }}">
+        <div class="lp-bar"><i style="inline-size: {{ percent }}%"></i></div>
+        <span>{{ t('lp.complete_pct', n=percent) }}</span>
+      </div>
+      {% elif mode == 'preview' %}
+      <span class="badge badge-amber">{{ icon('info', 14) }}{{ t('lp.preview_badge') }}</span>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if not current %}
+  <section class="panel panel-pad">{{ t('lp.empty_course') }}</section>
+  {% else %}
+  <div class="lp-grid">
+    <nav class="lp-outline panel" aria-label="{{ t('lp.content') }}">
+      {% for m in modules %}
+      <details class="lp-module" {% if module and m.lesson_id == module.lesson_id or loop.length <= 4 %}open{% endif %}>
+        <summary>
+          <span class="lp-module-n">{{ t('lp.module_n', n=m.n) }}</span>
+          <span class="lp-module-title" dir="auto">{{ m.title }}</span>
+          <span class="lp-module-count">{{ m['items']|selectattr('id', 'in', done)|list|length }}/{{ m['items']|length }}</span>
+        </summary>
+        <ul>
+          {% for i in m['items'] %}
+          <li>
+            <a class="lp-item {% if i.id == current.id %}active{% endif %} {% if i.id in done %}done{% endif %}" href="{{ base }}?item={{ i.id|urlencode }}" {% if i.id == current.id %}aria-current="page"{% endif %}>
+              <span class="lp-item-icon">{% if i.id in done %}{{ icon('check_circle', 18) }}{% else %}{{ item_icon(i) }}{% endif %}</span>
+              <span class="lp-item-text"><span dir="auto">{{ i.title }}</span><small>{{ t('lp.type.' ~ i.type) }}</small></span>
+            </a>
+          </li>
+          {% else %}
+          <li class="muted small lp-none">{{ t('course.no_assets') }}</li>
+          {% endfor %}
+        </ul>
+      </details>
+      {% endfor %}
+    </nav>
+
+    <main class="lp-main">
+      <p class="lp-crumb"><span>{{ t('lp.module_n', n=module.n) }} · <span dir="auto">{{ module.title }}</span></span><span>{{ t('lp.item_of', i=index, n=count) }}</span></p>
+      <h2 class="lp-title" dir="auto">{{ current.title }}</h2>
+
+      <div class="lp-stage lp-stage--{{ current.type }}">
+        {% if current.type == 'video' %}
+          <video controls preload="metadata" src="{{ current.src }}"></video>
+        {% elif current.type == 'youtube' %}
+          <iframe src="{{ current.embed }}" title="{{ current.title }}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        {% elif current.type == 'audio' %}
+          <div class="lp-file">{{ icon('clip', 34) }}<audio controls src="{{ current.src }}"></audio></div>
+        {% elif current.type == 'image' %}
+          <img src="{{ current.src }}" alt="{{ current.title }}">
+        {% elif current.type == 'reading' %}
+          <article class="lp-reading" dir="auto">{{ current.notes }}</article>
+        {% else %}
+          <div class="lp-file">
+            <span class="lp-file-icon">{{ item_icon(current, 34) }}</span>
+            <div><strong dir="auto">{{ current.title }}</strong><p class="muted">{{ t('asset.kind.' ~ current.kind) if current.kind else t('lp.type.file') }}</p></div>
+            {% if current.type == 'link' and current.source_url %}
+              <a class="btn btn-primary" href="{{ current.source_url }}" target="_blank" rel="noopener noreferrer">{{ icon('arrow', 16, 'flip') }}<span>{{ t('lp.open_youtube') }}</span></a>
+            {% elif current.src %}
+              <a class="btn btn-primary" href="{{ current.src }}{{ '&' if '?' in current.src else '?' }}download=1">{{ icon('download', 16) }}<span>{{ t('lp.download') }}</span></a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="lp-actions">
+        {% if prev %}<a class="btn btn-secondary" href="{{ base }}?item={{ prev.id|urlencode }}">{{ icon('chevron', 16, 'back') }}<span>{{ t('lp.prev') }}</span></a>{% else %}<span></span>{% endif %}
+        {% if mode == 'student' %}
+          <form method="post" action="{{ base }}/progress">
+            <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="item_id" value="{{ current.id }}">
+            {% if current.id in done %}
+              <input type="hidden" name="done" value="0">
+              <button class="btn btn-secondary lp-done" type="submit">{{ icon('check_circle', 18) }}<span>{{ t('lp.done') }}</span></button>
+            {% else %}
+              <input type="hidden" name="done" value="1"><input type="hidden" name="next" value="{{ next.id if next else '' }}">
+              <button class="btn btn-primary" type="submit">{{ icon('check', 18) }}<span>{{ t('lp.mark_done') }}</span></button>
+            {% endif %}
+          </form>
+        {% endif %}
+        {% if next %}<a class="btn btn-secondary" href="{{ base }}?item={{ next.id|urlencode }}"><span>{{ t('lp.next') }}</span>{{ icon('chevron', 16, 'flip') }}</a>{% else %}<span></span>{% endif %}
+      </div>
+      {% if mode == 'student' and percent >= 100 %}<div class="inline-note">{{ icon('check_circle', 16) }}<span>{{ t('lp.finished_course') }}</span></div>{% endif %}
+
+      {% set files = module['items']|selectattr('src')|list %}
+      {% if files %}
+      <section class="lp-materials">
+        <h3>{{ t('lp.module_materials') }}</h3>
+        <ul>
+          {% for f in files %}
+          <li>{{ item_icon(f) }}<span dir="auto">{{ f.title }}</span><a class="btn btn-secondary btn-sm" href="{{ f.src }}{{ '&' if '?' in f.src else '?' }}download=1">{{ icon('download', 16) }}<span>{{ t('lp.download') }}</span></a></li>
+          {% endfor %}
+        </ul>
+      </section>
+      {% endif %}
+    </main>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

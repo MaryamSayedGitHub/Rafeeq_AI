@@ -1,0 +1,30 @@
+{
+  "schema_version": 2, "diagram_type": "workflow",
+  "meta": { "title": "Animated video: a story, scene after scene", "output": "story.html", "quality_profile": "showcase", "locale": "en" },
+  "lanes": [
+    { "id": "teacher", "label": "Teacher" },
+    { "id": "rafeeq", "label": "Rafeeq" },
+    { "id": "models", "label": "Models" }
+  ],
+  "mainPath": ["topic", "plan", "scene1", "frame", "next", "stitch", "lib"],
+  "nodes": [
+    { "id": "topic", "lane": "teacher", "col": 0, "type": "frontend", "label": "Topic + style", "sublabel": "2 to 8 scenes" },
+    { "id": "plan", "lane": "rafeeq", "col": 1, "type": "backend", "label": "Story plan", "sublabel": "1 character, 1 setting" },
+    { "id": "scene1", "lane": "models", "col": 2, "type": "cloud", "label": "Scene 1", "sublabel": "Wan, 5 s" },
+    { "id": "frame", "lane": "rafeeq", "col": 3, "type": "backend", "label": "Last frame", "sublabel": "start of next scene" },
+    { "id": "next", "lane": "models", "col": 4, "type": "cloud", "label": "Next scene", "sublabel": "Wan, from the frame" },
+    { "id": "stitch", "lane": "rafeeq", "col": 5, "type": "backend", "label": "Join", "sublabel": "fades + narration" },
+    { "id": "llm", "lane": "models", "col": 1, "type": "cloud", "label": "LLM", "sublabel": "scenes + narration" },
+    { "id": "lib", "lane": "teacher", "col": 5, "type": "database", "label": "Library video", "sublabel": "add to a course" }
+  ],
+  "edges": [
+    { "id": "s1", "from": "topic", "to": "plan" },
+    { "id": "s2", "from": "plan", "to": "llm", "label": "write", "variant": "dashed", "role": "branch" },
+    { "id": "s3", "from": "plan", "to": "scene1" },
+    { "id": "s4", "from": "scene1", "to": "frame" },
+    { "id": "s5", "from": "frame", "to": "next", "variant": "emphasis" },
+    { "id": "s6", "from": "next", "to": "frame", "label": "repeat", "variant": "dashed", "role": "return" },
+    { "id": "s7", "from": "next", "to": "stitch", "label": "all scenes" },
+    { "id": "s8", "from": "stitch", "to": "lib", "variant": "emphasis" }
+  ]
+}

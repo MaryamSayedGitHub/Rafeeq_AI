@@ -1,0 +1,24 @@
+{# M5: the teacher's earlier video searches. Opening one shows its saved results; nothing is searched again. #}
+<div id="video-history" class="video-history"{% if history_oob %} hx-swap-oob="true"{% endif %}>
+  <h3 class="panel-title section-gap">{{ icon('refresh', 18) }}<span>{{ t('video.history') }}</span></h3>
+  {% if not history %}
+    <p class="muted small">{{ t('video.history_empty') }}</p>
+  {% else %}
+  <ul class="history-list">
+    {% for s in history %}
+    <li class="history-item">
+      <button class="history-open" type="button" hx-get="{{ u('/video/searches/' ~ s.search_id) }}" hx-target="#video-search-area"
+              title="{{ t('video.history_open') }}">
+        <span class="history-q" dir="auto">{{ s.query }}</span>
+        <span class="muted small" dir="ltr">{{ s.time[:10] }} · {{ t('video.history_count', n=s.count) }}</span>
+      </button>
+      <form hx-post="{{ u('/video/searches/' ~ s.search_id ~ '/delete') }}" hx-target="#video-history" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf }}">
+        <input type="hidden" name="room_id" value="{{ room_id or '' }}">
+        <button class="icon-btn" type="submit" aria-label="{{ t('video.history_delete') }}" title="{{ t('video.history_delete') }}">{{ icon('trash', 16) }}</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>

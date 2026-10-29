@@ -479,6 +479,30 @@ def test_courses_are_published_to_the_room_and_students_see_only_the_snapshot(cl
     assert client.get(asset["file_url"], headers=SARA).status_code == 404
 
 
+def test_course_progress_is_per_student_and_only_counts_real_items(client):
+    room_id = room_with_student(client)
+    image = upload(client)
+    cid = client.post("/teacher/courses", headers=MONA, json={"title": "Progress", "room_id": room_id}).json()["course_id"]
+    course = client.post(f"/teacher/courses/{cid}/lessons", headers=MONA,
+                         json={"title": "L1", "notes": "Read me", "asset_ids": [image["asset_id"]]}).json()
+    lid = course["lessons"][0]["lesson_id"]
+    assert client.get(f"/rooms/{room_id}/courses/{cid}/progress", headers=SARA).status_code == 404     # not published yet
+    client.post(f"/teacher/courses/{cid}/publish", headers=MONA, json={"room_id": room_id})
+    first = client.get(f"/rooms/{room_id}/courses/{cid}/progress", headers=SARA).json()
+    assert first["done"] == [] and first["total"] == 2 and first["percent"] == 0
+    ignored = client.post(f"/rooms/{room_id}/courses/{cid}/progress", headers=SARA, json={"item_id": "l_x:a_x"}).json()
+    assert ignored["done"] == []
+    half = client.post(f"/rooms/{room_id}/courses/{cid}/progress", headers=SARA, json={"item_id": f"{lid}:notes"}).json()
+    assert half["percent"] == 50 and half["last"] == f"{lid}:notes"
+    full = client.post(f"/rooms/{room_id}/courses/{cid}/progress", headers=SARA, json={"item_id": f"{lid}:{image['asset_id']}"}).json()
+    assert full["percent"] == 100
+    summary = client.get(f"/teacher/courses/{cid}/progress", headers=MONA).json()
+    assert summary["started"] == 1 and summary["completed"] == 1 and summary["average"] == 100
+    undone = client.post(f"/rooms/{room_id}/courses/{cid}/progress", headers=SARA, json={"item_id": f"{lid}:notes", "done": False}).json()
+    assert undone["percent"] == 50
+    assert client.get(f"/rooms/{room_id}/courses/{cid}/progress").status_code == 401
+
+
 def test_course_access_rules(client):
     room_id = room_with_student(client)
     other_teacher = new_account(client, "teacher", "t2@x.com")
@@ -533,14 +557,18 @@ def csrf_of(html):
 
 def test_each_studio_is_its_own_page_and_the_sidebar_links_them(client):
     t = login(client.app, "mona@rafeeq.demo")
-    pages = {"/app/video": "اكتشاف الفيديو", "/app/presentations": "العروض التقديمية", "/app/media": "الصور والوسائط",
+    pages = {"/app/video": "اكتشاف الفيديو", "/app/presentations": "العروض التقديمية", "/app/media": "المونتاج الذكي",
              "/app/story": "استوديو فيديو القصة", "/app/learning": "منصتي التعليمية", "/app/library": "مكتبتي"}
     for path, heading in pages.items():
         r = t.get(path)
         assert r.status_code == 200 and heading in r.text, path
         assert r.text.count('aria-current="page"') >= 1, path
         for other in pages:                                   # every page carries the whole navigation
-            assert f'href="{other}' in r.text, (path, other)
+            if other != "/app/presentations":                 # Presentations is a tab of the Lesson studio, not a sidebar studio
+                assert f'href="{other}' in r.text, (path, other)
+        assert f'href="/app/presentations' not in r.text.split('class="main"')[0], path    # not in the sidebar any more
+    deck_page = t.get("/app/presentations")                  # the Lesson studio's two tabs, with Presentations current
+    assert 'class="subtabs"' in deck_page.text and 'class="subtab active" href="/app/presentations' in deck_page.text
     assert t.get("/app/studio").status_code == 200           # no rooms yet: the rooms page with a hint, never an error
     student = login(client.app, "sara@rafeeq.demo")
     for path in pages:
@@ -604,10 +632,21 @@ def test_work_flows_between_the_studios_and_persists(client, monkeypatch):
 
     s = login(client.app, "sara@rafeeq.demo")
     s.post("/app/rooms/join", data={"csrf_token": csrf_of(s.get("/app/rooms").text), "code": code})
-    learn = s.get(f"/app/rooms/{room_id}/learn")
-    assert learn.status_code == 200 and "دورة الأحياء" in learn.text and "الدرس الأول" in learn.text and "اقرأ أولًا" in learn.text
-    file_url = re.search(r'src="(/app/rooms/[^"]+/file)"', learn.text).group(1)
+    learn = s.get(f"/app/rooms/{room_id}/learn")                                       # the catalog: one card per course
+    assert learn.status_code == 200 and "دورة الأحياء" in learn.text and f"/app/rooms/{room_id}/learn/{cid}" in learn.text
+    player = s.get(f"/app/rooms/{room_id}/learn/{cid}")                                 # the player opens on the first item
+    assert player.status_code == 200 and "الدرس الأول" in player.text and "اقرأ أولًا" in player.text
+    image_item = f"{lesson_id}:{version_id}"
+    shown = s.get(f"/app/rooms/{room_id}/learn/{cid}?item={image_item}")
+    file_url = re.search(r'src="(/app/rooms/[^"]+/file)"', shown.text).group(1)
     assert s.get(file_url).status_code == 200 and s.get(file_url).headers["content-type"].startswith("image/")
+    marked = s.post(f"/app/rooms/{room_id}/learn/{cid}/progress",                      # mark complete -> back to the player
+                    data={"csrf_token": csrf_of(shown.text), "item_id": image_item, "done": "1"})
+    assert marked.status_code == 200 and "lp-item active done" in marked.text                 # the last item: stays, now done
+    after = s.get(f"/app/rooms/{room_id}/learn")
+    assert "%" in after.text                                                              # the card shows the progress
+    preview = t.get(f"/app/learning/{cid}/preview")                                       # the teacher sees the student view
+    assert preview.status_code == 200 and "الدرس الأول" in preview.text
 
     # My Library shows the projects and the new assets, with links to use them elsewhere
     library = t.get("/app/library")

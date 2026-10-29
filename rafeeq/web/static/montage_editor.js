@@ -1,4 +1,4 @@
-/* M5 montage editor. Every control changes the preview at once; "Create final video" sends the decisions
+/* M5 montage editor. Every control changes the preview at once (Voice to Visual places AI pictures where they are said); "Create final video" sends the decisions
    (pieces to keep, captions, chapters, cards, music) to the montage agent team, which renders them. */
 (() => {
   const root = document.getElementById("ed");
@@ -84,6 +84,7 @@
     const c = cardsOn(); set("cards", c.intro || c.outro ? [c.intro ? "▶" : "", c.outro ? "■" : ""].join(" ").trim() : tt("sum_off"));
     set("music", S.music ? S.music.title : tt("sum_none"));
     set("gifs", S.st.length ? String(S.st.length) : tt("sum_none"));
+    const nv = S.st.filter((k) => k.voice).length; set("voice", nv ? String(nv) : tt("sum_none"));
     $("ed-chip-in").hidden = !c.intro; $("ed-chip-out").hidden = !c.outro;
     const mb = $("ed-music-bar"); mb.hidden = !S.music; if (S.music) mb.textContent = "♪ " + S.music.title;
   }
@@ -324,7 +325,7 @@
     $("ed-pauses-on").checked = true; $("ed-min").value = 1; $("ed-min-label").textContent = "1.0 s";
     $("ed-intro-on").checked = false; $("ed-outro-on").checked = false; $("ed-cap-on").checked = true;
     if (sel) { sel.value = ""; S.music = null; musicEl.pause(); }
-    S.st = []; S.sel = null; buildStickerEls(); drawStList();
+    S.st = []; S.sel = null; buildStickerEls(); drawStList(); drawVoiceList();
     drawCapList(); drawChapList(); refresh();
   }
   $("ed-reset").addEventListener("click", reset);
@@ -341,7 +342,7 @@
   function buildStickerEls() {
     stl.textContent = "";
     for (const k of S.st) {
-      const im = el("img"); im.src = k.url; im.alt = ""; im.draggable = false; im.dataset.id = k.id;
+      const im = el("img", k.pending ? "pending" : null); im.src = k.url; im.alt = ""; im.draggable = false; im.dataset.id = k.id;
       im.addEventListener("pointerdown", (ev) => { ev.preventDefault(); ev.stopPropagation(); select(k.id); stDrag = { id: k.id }; im.setPointerCapture(ev.pointerId); });
       im.addEventListener("pointermove", (ev) => {
         if (!stDrag || stDrag.id !== k.id) return;
@@ -372,7 +373,7 @@
   function drawGifLane() {
     const box = $("ed-gifs"); if (!box) return; box.textContent = "";
     for (const k of S.st) {
-      const b = el("button", "ed-gifblock" + (k.id === S.sel ? " sel" : ""), k.label || "GIF"); b.type = "button";
+      const b = el("button", "ed-gifblock" + (k.voice ? " voice" : "") + (k.id === S.sel ? " sel" : ""), k.label || "GIF"); b.type = "button";
       b.style.left = pct(k.start) + "%"; b.style.width = Math.max(0.5, pct(k.end) - pct(k.start)) + "%"; b.title = `${fmt1(k.start)} – ${fmt1(k.end)}`;
       b.addEventListener("click", (e) => { e.stopPropagation(); select(k.id); seek(k.start); });
       box.appendChild(b);
@@ -447,6 +448,72 @@
   video.addEventListener("pause", showStickers); video.addEventListener("play", showStickers);
   drawPics(); drawStList();
 
+  // ---------------------------------------------------------------- Voice to Visual: what is said becomes pictures on the timeline
+  const PENDING_PIC = "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 90"><rect width="160" height="90" rx="10" fill="#e6f6f7" stroke="#0e9aa7" stroke-width="3" stroke-dasharray="8 6"/><circle cx="62" cy="45" r="6" fill="#0e9aa7"/><circle cx="80" cy="45" r="6" fill="#0e9aa7" opacity=".6"/><circle cx="98" cy="45" r="6" fill="#0e9aa7" opacity=".3"/></svg>');
+  const assetUrl = (id) => `${root.dataset.assets}${encodeURIComponent(id)}/file`;
+  let voiceTimer = null;
+  const voiceFailed = [];
+  function drawVoiceList() {
+    const ul = $("ed-voice-list"); ul.textContent = "";
+    const items = S.st.filter((k) => k.voice).map((k) => ({ ...k, state: k.pending ? "pending" : "ready" })).concat(voiceFailed.map((f) => ({ ...f, state: "failed" })));
+    items.sort((a, b) => a.start - b.start);
+    for (const k of items) {
+      const li = el("li", "ed-item ed-vitem " + k.state);
+      li.append(el("span", "ed-vkind", tt("voice.kind." + k.kind)));
+      const go = el("button", "ed-link", `${fmt(k.start)} · ${k.label}`); go.type = "button"; go.dir = "auto";
+      go.addEventListener("click", () => { if (k.id) select(k.id); seek(k.start); });
+      li.append(go, el("span", "ed-dim", k.state === "pending" ? tt("voice.pending") : k.state === "failed" ? "✕" : "✓"));
+      ul.appendChild(li);
+    }
+    drawSummaries();
+  }
+  function voiceStatus(text, cls) { const st = $("ed-voice-status"); st.textContent = text; st.className = "ed-status" + (cls ? " " + cls : ""); }
+  async function pollVoice() {
+    const waiting = S.st.filter((k) => k.voice && k.pending);
+    if (!waiting.length) { clearInterval(voiceTimer); voiceTimer = null; return; }
+    for (const k of waiting) {
+      try {
+        const res = await post("visual_status", { task_id: k.task_id }), data = await res.json();
+        if (data.status === "SUCCEEDED") {
+          k.pending = false; k.url = k.thumb = assetUrl(k.src.asset_id);
+        } else if (data.status === "FAILED" || (!res.ok && res.status !== 502)) {
+          S.st = S.st.filter((x) => x !== k); voiceFailed.push({ start: k.start, kind: k.kind, label: k.label });
+          voiceStatus(tt("voice.pic_failed", { label: k.label }), "bad");
+        }
+      } catch (e) { /* try again on the next round */ }
+    }
+    buildStickerEls(); drawStList(); drawGifLane(); drawVoiceList();
+    const left = S.st.filter((k) => k.voice && k.pending).length;
+    if (!left) { clearInterval(voiceTimer); voiceTimer = null; if (!voiceFailed.length) voiceStatus(tt("voice.done", { n: S.st.filter((k) => k.voice).length })); }
+    else voiceStatus(tt("voice.drawing", { n: left }), "busy");
+  }
+  $("ed-voice-go").addEventListener("click", async () => {
+    const btn = $("ed-voice-go");
+    btn.disabled = true; voiceStatus(tt("voice.listening"), "busy");
+    try {
+      const segs = S.segs.filter((x) => x.text.trim());
+      const res = await post("visuals", { segments: segs.length ? segs : null }), data = await res.json();
+      if (!res.ok) throw new Error(data.error || tt("voice.failed"));
+      if (data.segments && !S.segs.length) { S.segs = data.segments; drawCapList(); }      // the captions came for free
+      S.st = S.st.filter((k) => !k.voice); voiceFailed.length = 0;                           // a new run replaces the old one
+      const room = MAX_ST - S.st.length;
+      for (const v of (data.visuals || []).slice(0, Math.max(0, room))) {
+        if (v.status === "failed") { voiceFailed.push({ start: v.start, kind: v.kind, label: v.label }); continue; }
+        const ready = v.status === "ready", url = v.url || (ready ? assetUrl(v.asset_id) : PENDING_PIC);
+        S.st.push({ id: "s" + (++S.stSeq), voice: true, kind: v.kind, pending: !ready, task_id: v.task_id || "", src: v.src,
+          url, thumb: v.thumb || url, label: (v.label || v.kind).slice(0, 24), start: v.start, end: Math.min(S.dur, v.end),
+          x: 0.8, y: 0.3, w: v.kind === "diagram" ? 0.36 : 0.3 });
+      }
+      buildStickerEls(); drawStList(); drawGifLane(); drawVoiceList(); refresh();
+      const n = S.st.filter((k) => k.voice).length, waiting = S.st.filter((k) => k.voice && k.pending).length;
+      if (!n && !voiceFailed.length) voiceStatus(tt("voice.none"));
+      else if (waiting) { voiceStatus(tt("voice.drawing", { n: waiting }), "busy"); clearInterval(voiceTimer); voiceTimer = setInterval(pollVoice, 4000); }
+      else voiceStatus(tt("voice.done", { n }));
+    } catch (e) { voiceStatus(e.message, "bad"); }
+    btn.disabled = false;
+  });
+  drawVoiceList();
+
   // ---------------------------------------------------------------- render
   function decisions() {
     const keep = keepRanges(), c = cardsOn();
@@ -462,6 +529,7 @@
   }
   $("ed-render").addEventListener("click", async () => {
     const st = $("ed-render-status"), btn = $("ed-render"), body = decisions();
+    if (S.st.some((k) => k.pending)) { st.textContent = tt("voice.wait"); st.className = "ed-status bad"; return; }
     if (!body.keep && !body.intro && !body.outro && !body.segments && !body.chapter_list && !body.music_asset_id && !body.stickers) { st.textContent = tt("nothing_to_do"); st.className = "ed-status bad"; return; }
     btn.disabled = true; st.textContent = tt("sending"); st.className = "ed-status busy";
     try {

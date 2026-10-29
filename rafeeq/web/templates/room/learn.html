@@ -13,41 +13,25 @@
 {% elif not courses %}
   <section class="panel panel-pad">{{ empty_state('book', t('learn.empty'), t('learn.empty_text')) }}</section>
 {% else %}
-  {% for c in courses %}
-  <section class="panel panel-pad course-view">
-    <h2 class="panel-title" dir="auto">{{ c.title }}</h2>
-    {% if c.description %}<p class="muted" dir="auto">{{ c.description }}</p>{% endif %}
-    <ol class="lesson-list">
-      {% for l in c.lessons %}
-      <li>
-        <h3 dir="auto">{{ l.title }}</h3>
-        {% if l.notes %}<p dir="auto">{{ l.notes }}</p>{% endif %}
-        {% for a in l.assets %}
-        <div class="lesson-asset">
-          {% set src = u('/rooms/' ~ room.room_id ~ '/courses/' ~ c.course_id ~ '/assets/' ~ a.asset_id ~ '/file') %}
-          {% if a.kind in ('generated_video', 'video') and a.file_url %}
-            <video class="video-player" controls preload="metadata" src="{{ src }}"></video>
-          {% elif a.kind == 'source_video' and yt_embed(a.source_url, a.start_sec, a.end_sec) %}
-            <iframe class="video-embed" src="{{ yt_embed(a.source_url, a.start_sec, a.end_sec) }}" title="{{ a.title }}" loading="lazy" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
-          {% elif a.kind == 'image' and a.file_url %}
-            <img class="asset-thumb" src="{{ src }}" alt="{{ a.title }}" loading="lazy">
-          {% elif a.kind == 'audio' and a.file_url %}
-            <audio class="audio-player" controls src="{{ src }}"></audio>
-          {% endif %}
-          <div class="asset-actions">
-            <span class="file-cell">{{ icon('file', 18) }}<span dir="auto">{{ a.title }}</span><span class="badge badge-gray">{{ t('asset.kind.' ~ a.kind) }}</span></span>
-            {% if a.kind == 'source_video' and a.source_url %}
-              <a class="btn btn-secondary btn-sm" href="{{ a.source_url }}" target="_blank" rel="noopener noreferrer">{{ icon('arrow', 16, 'flip') }}<span>{{ t('library.open_source') }}</span></a>
-            {% elif a.file_url %}
-              <a class="btn btn-secondary btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/courses/' ~ c.course_id ~ '/assets/' ~ a.asset_id ~ '/file', download=1) }}">{{ icon('download', 16) }}<span>{{ t('library.download') }}</span></a>
-            {% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      </li>
-      {% endfor %}
-    </ol>
-  </section>
-  {% endfor %}
+  <ul class="course-grid">
+    {% for c in courses %}
+    {% set p = c.progress.percent if c.progress else None %}
+    <li class="course-card">
+      <a class="course-cover" href="{{ u('/rooms/' ~ room.room_id ~ '/learn/' ~ c.course_id) }}" {% if c.stats.cover %}style="background-image: url('{{ c.stats.cover }}')"{% endif %} aria-hidden="true" tabindex="-1">
+        {% if not c.stats.cover %}<span>{{ icon('book', 40) }}</span>{% endif %}
+      </a>
+      <div class="course-body">
+        <h2 dir="auto"><a href="{{ u('/rooms/' ~ room.room_id ~ '/learn/' ~ c.course_id) }}">{{ c.title }}</a></h2>
+        {% if c.description %}<p class="course-desc" dir="auto">{{ c.description }}</p>{% endif %}
+        <p class="course-meta">{{ t('lp.modules', n=c.stats.modules) }} · {{ t('lp.videos', n=c.stats.videos) }} · {{ t('lp.materials', n=c.stats.materials) }}</p>
+        {% if p is not none %}
+        <div class="lp-progress small"><div class="lp-bar"><i style="inline-size: {{ p }}%"></i></div><span>{{ t('lp.complete_pct', n=p) }}</span></div>
+        {% endif %}
+        <a class="btn {{ 'btn-secondary' if p and p >= 100 else 'btn-primary' }} btn-sm" href="{{ u('/rooms/' ~ room.room_id ~ '/learn/' ~ c.course_id) }}">
+          <span>{{ t('lp.open') if p is none else (t('lp.review') if p >= 100 else (t('lp.continue') if p > 0 or c.progress.last else t('lp.start'))) }}</span>{{ icon('chevron', 16, 'flip') }}</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
 {% endif %}
 {% endblock %}

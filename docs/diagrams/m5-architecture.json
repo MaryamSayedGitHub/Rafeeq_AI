@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": { "title": "Rafeeq M5: the teacher side", "output": "m5-architecture.html", "quality_profile": "showcase", "locale": "en" },
+  "components": [
+    { "id": "teacher", "type": "external", "label": "Teacher", "sublabel": "browser", "pos": [40, 40], "size": [120, 60] },
+    { "id": "web", "type": "frontend", "label": "Rafeeq web", "sublabel": "/app pages", "pos": [250, 40], "size": [140, 60] },
+    { "id": "gate", "type": "security", "label": "FastAPI gate", "sublabel": "token + teacher role", "pos": [480, 40], "size": [160, 64], "tag": "room_teacher()" },
+    { "id": "create", "type": "backend", "label": "A · Creating materials", "sublabel": "lesson studio, videos, media", "pos": [760, 40], "size": [200, 64] },
+    { "id": "send", "type": "backend", "label": "B · Sending reports", "sublabel": "drafts, approval, send", "pos": [760, 200], "size": [200, 64] },
+    { "id": "platform", "type": "backend", "label": "C · Teacher platform", "sublabel": "class, inbox, library, courses", "pos": [760, 360], "size": [200, 64] },
+    { "id": "models", "type": "cloud", "label": "Models", "sublabel": "LLM · Gemini · Wan", "pos": [1060, 40], "size": [150, 64] },
+    { "id": "channels", "type": "external", "label": "Parents", "sublabel": "email · WhatsApp · link", "pos": [1060, 200], "size": [150, 64] },
+    { "id": "store", "type": "database", "label": "Teacher store", "sublabel": "Postgres, else memory", "pos": [1060, 360], "size": [150, 64] },
+    { "id": "copilot", "type": "backend", "label": "M1 Copilot", "sublabel": "student chat", "pos": [480, 300], "size": [160, 60] },
+    { "id": "quiz", "type": "backend", "label": "M4 Quiz", "sublabel": "quiz results", "pos": [480, 420], "size": [160, 60] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "M5", "wraps": ["create", "send", "platform"] }
+  ],
+  "connections": [
+    { "id": "teacher-web", "from": "teacher", "to": "web", "label": "HTTPS", "variant": "emphasis" },
+    { "id": "web-gate", "from": "web", "to": "gate", "label": "Bearer" },
+    { "id": "gate-create", "from": "gate", "to": "create" },
+    { "id": "gate-send", "from": "gate", "to": "send" },
+    { "id": "gate-platform", "from": "gate", "to": "platform" },
+    { "id": "create-models", "from": "create", "to": "models", "label": "generate" },
+    { "id": "send-parents", "from": "send", "to": "channels", "label": "approved only", "variant": "security" },
+    { "id": "platform-store", "from": "platform", "to": "store", "label": "read / write" },
+    { "id": "copilot-platform", "from": "copilot", "to": "platform", "label": "questions", "variant": "dashed" },
+    { "id": "quiz-platform", "from": "quiz", "to": "platform", "label": "results", "variant": "dashed" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "A · Creating materials", "items": ["Lesson studio + Presentations tab", "Video discovery with saved searches", "Visual & media, story video"] },
+    { "dot": "amber", "title": "B · Sending reports", "items": ["Nothing leaves before the teacher approves", "Fixed Arabic text, never an LLM"] },
+    { "dot": "cyan", "title": "C · Teacher platform", "items": ["Class report + inbox from real activity", "Library, courses, smart montage"] }
+  ]
+}

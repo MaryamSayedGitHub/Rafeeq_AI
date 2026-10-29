@@ -29,6 +29,7 @@ import logging
 import os
 
 from rafeeq.teacher.lecturer.settings import DATABASE_URL
+from rafeeq.observability import traced
 
 log = logging.getLogger(__name__)
 
@@ -410,6 +411,7 @@ def _index_video(conn, candidate: dict, outline_budget: list[int]) -> None:
 # ---------------------------------------------------------------------------
 # Step 3 — Put it all together
 # ---------------------------------------------------------------------------
+@traced("video_discovery.search", "retriever")
 def search(question: str, top_k: int = 5) -> list[dict]:
     """Always returns a list (possibly empty) -- never raises, so the
     dashboard's search box degrades gracefully instead of crashing the page."""

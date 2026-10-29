@@ -1,5 +1,5 @@
 {% extends "layout.html" %}
-{% from "macros.html" import empty_state, section_state, project_bar with context %}
+{% from "macros.html" import empty_state, section_state, project_bar, studio_subtabs with context %}
 {% block title %}{{ t('deck.title') }}{% endblock %}
 {% block content %}
 <div class="page-head">
@@ -8,6 +8,7 @@
     <p>{{ t('deck.intro') }}</p>
   </div>
 </div>
+{{ studio_subtabs('presentations', proj.room.room_id if proj.room else '') }}
 {{ project_bar(proj, '/presentations', keep) }}
 {% if request.query_params.get('asset') %}<div class="inline-note">{{ icon('image', 16) }}<span>{{ t('deck.pick_deck_for_image') }}</span></div>{% endif %}
 {% if request.query_params.get('theme') %}<div class="inline-note">{{ icon('settings', 16) }}<span>{{ t('deck.pick_deck_for_theme') }}</span></div>{% endif %}

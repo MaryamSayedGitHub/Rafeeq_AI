@@ -1,0 +1,30 @@
+{
+  "schema_version": 2, "diagram_type": "workflow",
+  "meta": { "title": "Video discovery with saved searches", "output": "discovery.html", "quality_profile": "showcase", "locale": "en" },
+  "lanes": [
+    { "id": "teacher", "label": "Teacher" },
+    { "id": "server", "label": "Rafeeq" },
+    { "id": "ext", "label": "Outside" }
+  ],
+  "mainPath": ["q", "expand", "yt", "chunks", "rank", "result"],
+  "nodes": [
+    { "id": "q", "lane": "teacher", "col": 0, "type": "frontend", "label": "Question" },
+    { "id": "expand", "lane": "server", "col": 1, "type": "backend", "label": "Search phrases", "sublabel": "Gemini, AR + EN" },
+    { "id": "yt", "lane": "ext", "col": 2, "type": "cloud", "label": "YouTube", "sublabel": "≤ 12 videos" },
+    { "id": "chunks", "lane": "server", "col": 3, "type": "backend", "label": "45 s parts", "sublabel": "transcripts" },
+    { "id": "rank", "lane": "server", "col": 4, "type": "backend", "label": "Rank", "sublabel": "embeddings ≥ 0.5" },
+    { "id": "cache", "lane": "ext", "col": 4, "type": "database", "label": "pgvector", "sublabel": "each video once" },
+    { "id": "result", "lane": "teacher", "col": 5, "type": "frontend", "label": "Video at the minute" },
+    { "id": "history", "lane": "server", "col": 5, "type": "database", "label": "Earlier searches", "sublabel": "newest 30", "tag": "new" }
+  ],
+  "edges": [
+    { "id": "d1", "from": "q", "to": "expand" },
+    { "id": "d2", "from": "expand", "to": "yt" },
+    { "id": "d3", "from": "yt", "to": "chunks" },
+    { "id": "d4", "from": "chunks", "to": "rank" },
+    { "id": "d5", "from": "rank", "to": "result", "variant": "emphasis" },
+    { "id": "d6", "from": "rank", "to": "cache", "label": "cache", "variant": "dashed", "role": "branch" },
+    { "id": "d7", "from": "rank", "to": "history", "label": "save", "variant": "dashed", "role": "branch" },
+    { "id": "d8", "from": "history", "to": "result", "label": "reopen", "variant": "dashed", "role": "return" }
+  ]
+}

@@ -20,7 +20,7 @@ from pathlib import Path
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 VIDEO_EXTS = {".mp4", ".webm", ".mov"}
 AUDIO_EXTS = {".mp3", ".wav", ".m4a", ".ogg"}
-MAX_UPLOAD_BYTES = {"image": 15 * 1024 * 1024, "video": 150 * 1024 * 1024, "audio": 40 * 1024 * 1024}
+MAX_UPLOAD_BYTES = {"image": 15 * 1024 * 1024, "video": 1024 * 1024 * 1024, "audio": 40 * 1024 * 1024}
 VOICES = {
     "ar-EG-SalmaNeural": "Arabic (Egypt), female", "ar-EG-ShakirNeural": "Arabic (Egypt), male",
     "ar-SA-ZariyahNeural": "Arabic (Saudi), female", "ar-SA-HamedNeural": "Arabic (Saudi), male",

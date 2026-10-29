@@ -42,8 +42,9 @@ dependencies = [
     "youtube-search-python>=1.6.6",
     "sqlalchemy>=2.1.4",
     "pymupdf>=1.28.2",
-    # M4 quiz: checks typed maths answers (equations, expressions) by value
-    "sympy>=1.13",
+    "faiss-cpu>=1.15.1",
+    "sentence-transformers>=6.1.0",
+    "langfuse>=5.0.4",
 ]
 
 [project.optional-dependencies]

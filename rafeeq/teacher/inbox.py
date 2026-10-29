@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from rafeeq.teacher import class_report as cr
+from rafeeq.observability import traced
 
 log = logging.getLogger(__name__)
 
@@ -184,6 +185,7 @@ def _excerpts(room_id: str, question: str) -> str:
         return ""
 
 
+@traced("inbox.draft", "generation")
 def draft(room_id: str, question: str, propose=None) -> str | None:
     propose = propose or _propose()
     if propose is None:
@@ -199,6 +201,7 @@ def draft(room_id: str, question: str, propose=None) -> str | None:
     return reply or None
 
 
+@traced("inbox.assistant", "generation")
 def assistant(room_id: str, request: str, store: Any = None, propose=None) -> str | None:
     """POST /teacher/assistant: a draft for the teacher's request, grounded in the room's class data."""
     store = store or cr.get_store()

@@ -1,7 +1,7 @@
 /* M5 montage editor, "cutting table" look: warm paper, thick ink outlines, one colour per tool.
    Tools are cards that show their own live status; the timeline is a stack of colour-coded lanes. */
 .ed { --ink: #2a1b33; --paper: #fff; --cream: #fff7ee; --plum: #7a2e5c; --coral: #ff6b5e; --sky: #3d9bff; --mint: #1fb59a;
-  --sun: #ffb92e; --violet: #7c5cff; --pink: #ff4fa3; --soft: #6b5a73; --lane-gap: 6px;
+  --sun: #ffb92e; --violet: #7c5cff; --pink: #ff4fa3; --teal: #0e9aa7; --soft: #6b5a73; --lane-gap: 6px;
   position: relative; display: grid; gap: 18px; padding: 22px 24px 26px; color: var(--ink); min-inline-size: 0;
   background: var(--cream) radial-gradient(circle at 1px 1px, rgba(122, 46, 92, .16) 1.2px, transparent 1.4px) 0 0 / 22px 22px;
   border: 2.5px solid var(--ink); border-radius: 26px; box-shadow: 8px 8px 0 var(--plum); }
@@ -170,3 +170,14 @@
 .ed-stl img:active { cursor: grabbing; }
 .ed-gifblock { display: flex; align-items: center; line-height: 1; position: absolute; inset-block: 3px; min-inline-size: 10px; padding: 0 6px; border: 2px solid var(--ink); border-radius: 7px; background: var(--pink); color: #fff; font-size: .68rem; font-weight: 800; overflow: hidden; white-space: nowrap; text-align: start; }
 .ed-gifblock.sel { background: #ff86c2; box-shadow: 0 0 0 2px var(--ink), 0 0 0 5px var(--pink); }
+
+/* ---- Voice to Visual */
+.ed-tc[data-color=teal] { --c: var(--teal); }
+.ed-vitem { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.ed-vkind { font-size: .75rem; font-weight: 800; padding: 1px 8px; border-radius: 99px; border: 2px solid var(--ink); background: color-mix(in srgb, var(--teal) 18%, white); white-space: nowrap; }
+.ed-vitem.pending .ed-vkind { background: #fff3d6; animation: ed-pulse 1.2s ease-in-out infinite; }
+.ed-vitem.failed .ed-vkind { background: #ffd9d4; }
+.ed-gifblock.voice { background: var(--teal); color: #fff; }
+.ed-stl img.pending { opacity: .5 !important; outline: 2px dashed var(--teal); }
+@keyframes ed-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .ed-vitem.pending .ed-vkind { animation: none; } }

@@ -4,8 +4,8 @@
 {% block content %}
 {# M5: the montage editor. Every change shows on the video at once; "Create final video" hands the decisions to the agent team. #}
 {% set keys = ['no_audio', 'analyzing', 'analyze_failed', 'pauses_found', 'no_pauses', 'writing', 'write_failed', 'no_captions', 'no_chapters',
-   'chapter_default', 'intro_default', 'sending', 'render_failed', 'nothing_to_do', 'line_placeholder', 'chapter_placeholder', 'sum_off', 'sum_none', 'gifs.searching', 'gifs.none', 'gifs.failed', 'gifs.empty', 'gifs.limit', 'gifs.library_none', 'gifs.from', 'gifs.to', 'gifs.size', 'gifs.here', 'gifs.end_here', 'gifs.remove', 'sum_lines', 'sum_chapters', 'delta_less', 'delta_more'] %}
-<link rel="stylesheet" href="{{ u('/static/montage_editor.css') }}?v=3">
+   'chapter_default', 'intro_default', 'sending', 'render_failed', 'nothing_to_do', 'line_placeholder', 'chapter_placeholder', 'sum_off', 'sum_none', 'gifs.searching', 'gifs.none', 'gifs.failed', 'gifs.empty', 'gifs.limit', 'gifs.library_none', 'gifs.from', 'gifs.to', 'gifs.size', 'gifs.here', 'gifs.end_here', 'gifs.remove', 'voice.listening', 'voice.drawing', 'voice.done', 'voice.none', 'voice.failed', 'voice.wait', 'voice.pic_failed', 'voice.kind.diagram', 'voice.kind.illustration', 'voice.kind.animation', 'voice.pending', 'sum_lines', 'sum_chapters', 'delta_less', 'delta_more'] %}
+<link rel="stylesheet" href="{{ u('/static/montage_editor.css') }}?v=4">
 <div class="page-head">
   <div>
     <h1>{{ t('editor.title') }}</h1>
@@ -15,7 +15,7 @@
 </div>
 
 <section class="ed" id="ed" data-asset="{{ asset.asset_id }}" data-video="{{ u('/assets/' ~ asset.asset_id ~ '/file') }}"
-         data-base="{{ u('/media/' ~ asset.asset_id ~ '/editor') }}" data-title="{{ asset.title }}" data-csrf="{{ csrf }}">
+         data-base="{{ u('/media/' ~ asset.asset_id ~ '/editor') }}" data-title="{{ asset.title }}" data-csrf="{{ csrf }}" data-assets="{{ u('/assets/') }}">
   <script type="application/json" id="ed-i18n">{ {% for k in keys %}"{{ k }}": {{ t('editor.' ~ k)|tojson }}{% if not loop.last %},{% endif %}{% endfor %} }</script>
   <script type="application/json" id="ed-pics">[{% for m in pictures %}{"id": {{ m.asset_id|tojson }}, "title": {{ m.title|tojson }}, "url": {{ u('/assets/' ~ m.asset_id ~ '/file')|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]</script>
   <script type="application/json" id="ed-music">[{% for m in music %}{"id": {{ m.asset_id|tojson }}, "title": {{ m.title|tojson }}, "url": {{ u('/assets/' ~ m.asset_id ~ '/file')|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]</script>
@@ -102,6 +102,17 @@
         <p class="ed-hint">{{ t('editor.gifs.cut_note') }}</p>
         </div>
       </section>
+      <section class="ed-tc" data-color="teal">
+        <button class="ed-tool" type="button" role="tab" data-tool="voice" aria-selected="false">
+          <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="8" height="11" rx="4"/><path d="M6 19v-2M14 6h7v12h-7zM16 14l2-3 2 3"/></svg></span>
+          <span class="ed-tname"><b>{{ t('editor.tool.voice') }}</b><small dir="auto" id="sum-voice"></small></span>
+        </button>
+        <div class="ed-pane" data-pane="voice" hidden>        <p class="ed-hint">{{ t('editor.voice.hint') }}</p>
+        <button class="ed-btn primary" type="button" id="ed-voice-go">{{ t('editor.voice.go') }}</button>
+        <p class="ed-status" id="ed-voice-status"></p>
+        <ul class="ed-list" id="ed-voice-list"></ul>
+        </div>
+      </section>
       <section class="ed-tc" data-color="plum">
         <button class="ed-tool" type="button" role="tab" data-tool="cards" aria-selected="false">
           <span class="ed-ico"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></span>
@@ -174,5 +185,5 @@
   </div>
   <div id="ed-result" aria-live="polite" dir="auto"></div>
 </section>
-<script src="{{ u('/static/montage_editor.js') }}?v=3" defer></script>
+<script src="{{ u('/static/montage_editor.js') }}?v=4" defer></script>
 {% endblock %}

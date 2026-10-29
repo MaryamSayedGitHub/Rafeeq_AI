@@ -361,7 +361,7 @@ def test_lesson_studio_stays_focused_and_the_other_studios_have_their_own_pages(
     for path in ("/app/video", "/app/presentations", "/app/media", "/app/learning", "/app/library"):
         assert f'href="{path}' in page.text, path                                             # one sidebar link each
     for path, heading in (("/app/video", "اكتشاف الفيديو"), ("/app/presentations", "العروض التقديمية"),
-                          ("/app/media", "الصور والوسائط"), ("/app/learning", "منصتي التعليمية"), ("/app/library", "مكتبتي")):
+                          ("/app/media", "المونتاج الذكي"), ("/app/learning", "منصتي التعليمية"), ("/app/library", "مكتبتي")):
         r = t.get(path)
         assert r.status_code == 200 and heading in r.text and 'aria-current="page"' in r.text, path
     assert t.get("/app/studio", follow_redirects=False).headers["location"].endswith("/studio")

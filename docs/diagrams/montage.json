@@ -1,0 +1,207 @@
+{
+ "schema_version": 2,
+ "diagram_type": "workflow",
+ "meta": {
+  "title": "Smart montage: tools and agent team",
+  "output": "montage2.html",
+  "quality_profile": "showcase",
+  "locale": "en"
+ },
+ "lanes": [
+  {
+   "id": "teacher",
+   "label": "Teacher"
+  },
+  {
+   "id": "tools",
+   "label": "Montage tools"
+  },
+  {
+   "id": "team",
+   "label": "Agent team (LangGraph)"
+  },
+  {
+   "id": "out",
+   "label": "Models and library"
+  }
+ ],
+ "mainPath": [
+  "upload",
+  "editor",
+  "sup",
+  "cut",
+  "words",
+  "visuals",
+  "build",
+  "lib"
+ ],
+ "nodes": [
+  {
+   "id": "upload",
+   "lane": "teacher",
+   "col": 0,
+   "type": "frontend",
+   "label": "Recording",
+   "sublabel": "\u2264 1 GB, 90 min"
+  },
+  {
+   "id": "editor",
+   "lane": "teacher",
+   "col": 1,
+   "type": "frontend",
+   "label": "Montage editor",
+   "sublabel": "live preview"
+  },
+  {
+   "id": "pics",
+   "lane": "tools",
+   "col": 0,
+   "type": "backend",
+   "label": "Picture edits",
+   "sublabel": "crop, resize"
+  },
+  {
+   "id": "speech",
+   "lane": "tools",
+   "col": 1,
+   "type": "backend",
+   "label": "Narration",
+   "sublabel": "text to speech"
+  },
+  {
+   "id": "v2v",
+   "lane": "tools",
+   "col": 2,
+   "type": "backend",
+   "label": "Voice to Visual",
+   "sublabel": "future feature"
+  },
+  {
+   "id": "sup",
+   "lane": "team",
+   "col": 1,
+   "type": "backend",
+   "label": "Supervisor",
+   "sublabel": "plans the steps"
+  },
+  {
+   "id": "cut",
+   "lane": "team",
+   "col": 2,
+   "type": "backend",
+   "label": "Cut pauses",
+   "sublabel": "ffmpeg"
+  },
+  {
+   "id": "words",
+   "lane": "team",
+   "col": 3,
+   "type": "backend",
+   "label": "Captions + chapters"
+  },
+  {
+   "id": "visuals",
+   "lane": "team",
+   "col": 4,
+   "type": "backend",
+   "label": "Cards, GIFs, music"
+  },
+  {
+   "id": "build",
+   "lane": "team",
+   "col": 5,
+   "type": "security",
+   "label": "Assembler + QA",
+   "sublabel": "plays? sound?"
+  },
+  {
+   "id": "gemini",
+   "lane": "out",
+   "col": 3,
+   "type": "cloud",
+   "label": "Gemini",
+   "sublabel": "5-min pieces"
+  },
+  {
+   "id": "lib",
+   "lane": "out",
+   "col": 5,
+   "type": "database",
+   "label": "New video",
+   "sublabel": "original kept"
+  }
+ ],
+ "edges": [
+  {
+   "id": "a1",
+   "from": "upload",
+   "to": "editor"
+  },
+  {
+   "id": "a2",
+   "from": "pics",
+   "to": "editor",
+   "label": "pictures",
+   "variant": "dashed",
+   "role": "branch"
+  },
+  {
+   "id": "a3",
+   "from": "speech",
+   "to": "editor",
+   "label": "audio",
+   "variant": "dashed",
+   "role": "branch"
+  },
+  {
+   "id": "a4",
+   "from": "v2v",
+   "to": "editor",
+   "label": "visuals",
+   "variant": "dashed",
+   "role": "return"
+  },
+  {
+   "id": "a5",
+   "from": "editor",
+   "to": "sup",
+   "label": "render",
+   "variant": "emphasis"
+  },
+  {
+   "id": "a6",
+   "from": "sup",
+   "to": "cut"
+  },
+  {
+   "id": "a7",
+   "from": "cut",
+   "to": "words"
+  },
+  {
+   "id": "a8",
+   "from": "words",
+   "to": "visuals"
+  },
+  {
+   "id": "a9",
+   "from": "visuals",
+   "to": "build"
+  },
+  {
+   "id": "a10",
+   "from": "build",
+   "to": "lib",
+   "label": "ok",
+   "variant": "emphasis"
+  },
+  {
+   "id": "a11",
+   "from": "words",
+   "to": "gemini",
+   "label": "audio",
+   "variant": "dashed",
+   "role": "branch"
+  }
+ ]
+}
