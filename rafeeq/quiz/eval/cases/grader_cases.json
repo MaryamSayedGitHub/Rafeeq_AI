@@ -1,0 +1,373 @@
+{
+ "about": "Reference marks for the answer grader. human_met = which rubric points a person says the answer meets; human_same = a person says a short answer means the same as the key. STARTER SET written by hand: have a teacher or teammate check every label before you quote the numbers.",
+ "items": {
+  "E1": {
+   "kind": "essay",
+   "stem": "Explain why language models split text into tokens instead of reading whole words or single characters.",
+   "answer": "Tokens are a middle ground. A fixed vocabulary of whole words cannot cover rare or new words, while single characters make sequences very long and hard to model. Sub-word tokens keep the vocabulary small, still cover any word by combining pieces, and keep sequences short enough for the model to process.",
+   "rubric": [
+    "a whole-word vocabulary cannot cover rare or new words",
+    "characters make sequences too long",
+    "sub-word tokens give a small vocabulary and short sequences"
+   ]
+  },
+  "E2": {
+   "kind": "essay",
+   "stem": "What does self-attention let a model do that a plain left-to-right reading of the words does not?",
+   "answer": "Self-attention lets every token look at every other token in the sequence and weigh how relevant each one is. The model can therefore connect words that are far apart, such as a pronoun and its noun, and it can process all positions in parallel instead of one at a time.",
+   "rubric": [
+    "every token can look at every other token",
+    "weights say how relevant each token is",
+    "links distant words such as a pronoun and its noun",
+    "positions are processed in parallel"
+   ]
+  },
+  "E3": {
+   "kind": "essay",
+   "stem": "Why does a RAG system retrieve text before answering instead of relying on the model's memory alone?",
+   "answer": "Retrieval gives the model the relevant passages at question time. Answers can use up-to-date or private documents the model never saw in training, they can cite their sources, and the model is less likely to invent facts.",
+   "rubric": [
+    "supplies relevant passages at question time",
+    "covers recent or private documents missing from training",
+    "allows citing sources and reduces made-up facts"
+   ]
+  },
+  "E4": {
+   "kind": "essay",
+   "stem": "اشرح بإيجاز لماذا يستخدم نظام RAG مصادر خارجية عند الإجابة.",
+   "answer": "يجلب النظام مقاطع ذات صلة وقت السؤال، فيمكنه الإجابة من مستندات حديثة أو خاصة لم يتدرب عليها النموذج، ويستطيع ذكر المصدر ويقلل اختلاق المعلومات.",
+   "rubric": [
+    "يقدّم مقاطع ذات صلة وقت السؤال",
+    "يغطي مستندات حديثة أو خاصة لم يتدرب عليها النموذج",
+    "يسمح بذكر المصدر ويقلل اختلاق المعلومات"
+   ]
+  },
+  "P1": {
+   "kind": "problem",
+   "stem": "A model has a context window of 4,096 tokens. A prompt uses 1,500 tokens and the answer is limited to 500 tokens. How many tokens are still free in the window? Show the steps.",
+   "answer": "Used = 1,500 + 500 = 2,000. Free = 4,096 - 2,000 = 2,096 tokens.",
+   "rubric": [
+    "adds prompt and answer: 1,500 + 500 = 2,000",
+    "subtracts from the window: 4,096 - 2,000",
+    "final answer 2,096 tokens"
+   ]
+  },
+  "P2": {
+   "kind": "problem",
+   "stem": "A vector search returns the 3 passages nearest to a question. Their cosine similarities are 0.82, 0.64 and 0.91. Which passage should rank first, and which one is the weakest match? Explain.",
+   "answer": "Higher cosine similarity means a closer match, so rank by descending score: 0.91 first, then 0.82, then 0.64. The 0.91 passage ranks first and the 0.64 passage is the weakest.",
+   "rubric": [
+    "higher cosine similarity means a closer match",
+    "ranks 0.91 first",
+    "names 0.64 as the weakest"
+   ]
+  },
+  "S1": {
+   "kind": "short",
+   "stem": "What is the name of the process that splits text into tokens?",
+   "answer": "tokenization | tokenisation"
+  },
+  "S2": {
+   "kind": "short",
+   "stem": "What type of layer lets each token weigh the other tokens in a sequence?",
+   "answer": "self-attention | attention"
+  },
+  "S3": {
+   "kind": "short",
+   "stem": "What does RAG stand for?",
+   "answer": "retrieval-augmented generation"
+  },
+  "S4": {
+   "kind": "short",
+   "stem": "What is the name of the numeric vector that represents the meaning of a text?",
+   "answer": "embedding | embeddings"
+  },
+  "S5": {
+   "kind": "short",
+   "stem": "ما اسم عملية تقسيم النص إلى وحدات صغيرة قبل إدخاله للنموذج؟",
+   "answer": "التقطيع | tokenization"
+  },
+  "S6": {
+   "kind": "short",
+   "stem": "ما اسم المقياس الذي يقيس تشابه متجهين بالزاوية بينهما؟",
+   "answer": "تشابه جيب التمام | cosine similarity"
+  }
+ },
+ "answers": [
+  {
+   "item": "E1",
+   "answer": "Whole words would need a huge vocabulary and fail on new or rare words, and characters would make every sentence very long. Sub-word tokens fix both: a small vocabulary that can build any word, with short sequences.",
+   "human_met": [
+    true,
+    true,
+    true
+   ]
+  },
+  {
+   "item": "E1",
+   "answer": "If we used single letters the sequences would be really long and slow. Tokens are shorter.",
+   "human_met": [
+    false,
+    true,
+    false
+   ]
+  },
+  {
+   "item": "E1",
+   "answer": "Because computers only understand numbers so text must be converted to numbers.",
+   "human_met": [
+    false,
+    false,
+    false
+   ]
+  },
+  {
+   "item": "E2",
+   "answer": "Each word can attend to all the other words and gives them weights by relevance, so a pronoun can be linked to a noun far away. It also runs in parallel over all positions.",
+   "human_met": [
+    true,
+    true,
+    true,
+    true
+   ]
+  },
+  {
+   "item": "E2",
+   "answer": "It helps the model connect words that are far from each other, like pronouns to nouns.",
+   "human_met": [
+    false,
+    false,
+    true,
+    false
+   ]
+  },
+  {
+   "item": "E2",
+   "answer": "It makes the model bigger by adding more layers of neurons.",
+   "human_met": [
+    false,
+    false,
+    false,
+    false
+   ]
+  },
+  {
+   "item": "E3",
+   "answer": "It fetches the passages that matter and gives them to the model, so it can answer from new or private documents it was not trained on, and show where the answer came from, which cuts hallucination.",
+   "human_met": [
+    true,
+    true,
+    true
+   ]
+  },
+  {
+   "item": "E3",
+   "answer": "So the model can use private company documents that it was never trained on.",
+   "human_met": [
+    false,
+    true,
+    false
+   ]
+  },
+  {
+   "item": "E3",
+   "answer": "Retrieval makes the answer longer and more polite.",
+   "human_met": [
+    false,
+    false,
+    false
+   ]
+  },
+  {
+   "item": "E4",
+   "answer": "لأنه يجلب الفقرات المناسبة وقت السؤال ويستفيد من مستندات جديدة أو خاصة، ويقدر يذكر المصدر ويقلل الهلوسة.",
+   "human_met": [
+    true,
+    true,
+    true
+   ]
+  },
+  {
+   "item": "E4",
+   "answer": "عشان يستخدم ملفات الشركة الخاصة.",
+   "human_met": [
+    false,
+    true,
+    false
+   ]
+  },
+  {
+   "item": "E4",
+   "answer": "لأن النموذج بطيء.",
+   "human_met": [
+    false,
+    false,
+    false
+   ]
+  },
+  {
+   "item": "P1",
+   "answer": "1500 + 500 = 2000 tokens used. 4096 - 2000 = 2096 tokens free.",
+   "human_met": [
+    true,
+    true,
+    true
+   ]
+  },
+  {
+   "item": "P1",
+   "answer": "I add them: 1500 + 500 = 2000. Then 4096 minus 2000 is 2000.",
+   "human_met": [
+    true,
+    true,
+    false
+   ]
+  },
+  {
+   "item": "P1",
+   "answer": "2096",
+   "human_met": [
+    false,
+    false,
+    true
+   ]
+  },
+  {
+   "item": "P2",
+   "answer": "The bigger the cosine similarity the closer the meaning, so 0.91 is first and 0.64 is the weakest.",
+   "human_met": [
+    true,
+    true,
+    true
+   ]
+  },
+  {
+   "item": "P2",
+   "answer": "0.64 is first because it is the smallest distance.",
+   "human_met": [
+    false,
+    false,
+    false
+   ]
+  },
+  {
+   "item": "P2",
+   "answer": "0.91 is first.",
+   "human_met": [
+    false,
+    true,
+    false
+   ]
+  },
+  {
+   "item": "S1",
+   "answer": "tokenization",
+   "human_same": true
+  },
+  {
+   "item": "S1",
+   "answer": "Tokenizing the text",
+   "human_same": true
+  },
+  {
+   "item": "S1",
+   "answer": "tokenisation",
+   "human_same": true
+  },
+  {
+   "item": "S1",
+   "answer": "stemming",
+   "human_same": false
+  },
+  {
+   "item": "S1",
+   "answer": "embedding",
+   "human_same": false
+  },
+  {
+   "item": "S2",
+   "answer": "attention layer",
+   "human_same": true
+  },
+  {
+   "item": "S2",
+   "answer": "self attention",
+   "human_same": true
+  },
+  {
+   "item": "S2",
+   "answer": "convolution",
+   "human_same": false
+  },
+  {
+   "item": "S2",
+   "answer": "the attention mechanism",
+   "human_same": true
+  },
+  {
+   "item": "S3",
+   "answer": "Retrieval Augmented Generation",
+   "human_same": true
+  },
+  {
+   "item": "S3",
+   "answer": "retrieval and generation",
+   "human_same": false
+  },
+  {
+   "item": "S3",
+   "answer": "random access generation",
+   "human_same": false
+  },
+  {
+   "item": "S4",
+   "answer": "embedding vector",
+   "human_same": true
+  },
+  {
+   "item": "S4",
+   "answer": "an embedding",
+   "human_same": true
+  },
+  {
+   "item": "S4",
+   "answer": "token id",
+   "human_same": false
+  },
+  {
+   "item": "S4",
+   "answer": "the hash",
+   "human_same": false
+  },
+  {
+   "item": "S5",
+   "answer": "تقطيع النص",
+   "human_same": true
+  },
+  {
+   "item": "S5",
+   "answer": "tokenization",
+   "human_same": true
+  },
+  {
+   "item": "S5",
+   "answer": "التضمين",
+   "human_same": false
+  },
+  {
+   "item": "S6",
+   "answer": "cosine similarity",
+   "human_same": true
+  },
+  {
+   "item": "S6",
+   "answer": "جيب التمام",
+   "human_same": true
+  },
+  {
+   "item": "S6",
+   "answer": "المسافة الإقليدية",
+   "human_same": false
+  }
+ ]
+}

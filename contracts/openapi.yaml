@@ -2155,6 +2155,11 @@ components:
         room_id: { type: string }
         topic_id: { type: string }
         count: { type: integer, minimum: 1, maximum: 20, default: 5 }
+        kinds:
+          type: array
+          items: { type: string, enum: [mcq, true_false, short, math, problem, essay] }
+          default: [mcq]
+          description: "the question types to mix. mcq = 4 options, true_false = 2, short = a word or phrase, math = an expression or equation, problem = a worked problem, essay = a paragraph graded against a rubric. A paper quiz is always mcq."
 
     QuizQuestion:
       type: object
@@ -2164,12 +2169,16 @@ components:
         text: { type: string }
         choices:
           type: array
-          minItems: 2
           items: { type: string }
+          description: "mcq: 4 options, true_false: 2. Empty for short, math, problem and essay: the student types the answer."
         correct_answer:
           type: string
-          description: must be one of choices
+          description: "mcq / true_false: must be one of choices. Other kinds: the model answer."
         explanation: { type: string }
+        kind:
+          type: string
+          enum: [mcq, true_false, short, math, problem, essay]
+          default: mcq
 
     Quiz:
       type: object
@@ -2217,6 +2226,10 @@ components:
         mastery_change:
           type: array
           items: { $ref: "#/components/schemas/MasteryChange" }
+        item_scores:
+          type: array
+          items: { type: number, minimum: 0, maximum: 1 }
+          description: "one mark from 0 to 1 per question, same order. A typed answer can earn part of the marks; score above counts the questions with at least 0.7."
 
     NextStep:
       type: object

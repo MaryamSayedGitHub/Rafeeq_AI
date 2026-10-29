@@ -22,6 +22,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
 from fastapi.responses import FileResponse
+import httpx
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -29,13 +30,13 @@ from sqlalchemy.orm import Session
 from rafeeq.quiz import adapters
 from rafeeq.platform import access
 from rafeeq.quiz import api as m4_api
-from rafeeq.quiz.contracts import QuizCreateResponse
-from rafeeq.quiz.deps import current_user_id, get_approved_items, get_chunks, get_llm, get_room_chunks, get_verifier, material
+from rafeeq.quiz.contracts import ItemKind, QuizCreateResponse
+from rafeeq.quiz.deps import current_user_id, get_approved_items, get_chunks, get_grader_llm, get_llm, get_room_chunks, get_verifier, material
 from rafeeq.quiz.profile import service as profile_service
 from rafeeq.quiz.profile.db import get_session
 from rafeeq.quiz.quiz import service as quiz_service
-from rafeeq.quiz.quiz.models import AnswerRow, QuizRow
-from rafeeq.quiz.sheet.make_pdf import build_sheet_pdf, sheet_path
+from rafeeq.quiz.quiz.models import AnswerRow, QuizRow, answer_score
+from rafeeq.quiz.sheet.make_pdf import build_questions_pdf, build_sheet_pdf, questions_path, sheet_path
 from rafeeq.quiz.sheet.make_report import build_report
 
 router = APIRouter(tags=["M4 quiz and profile"])
@@ -46,6 +47,7 @@ class MakeQuizBody(BaseModel):
     room_id: str
     topic_id: Optional[str] = None  # empty or missing = a mix of the room's topics
     count: int = Field(default=5, ge=1, le=20)
+    kinds: list[ItemKind] = Field(default_factory=lambda: ["mcq"])  # which question types to mix
 
 
 class SubmitBody(BaseModel):
@@ -83,11 +85,14 @@ def make_quiz(
             approved_items=approved,
             topic_id=topic_id,
             verifier=verifier,
+            kinds=tuple(body.kinds),
         )
     except quiz_service.TopicNotFound:
         raise HTTPException(status_code=404, detail="topic not found in this course")
     except quiz_service.QuizGenerationError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+    except (httpx.HTTPError, RuntimeError) as exc:   # the model could not be reached (timeout, rate limit, bad key)
+        raise HTTPException(status_code=503, detail=f"the quiz model could not be reached, try again: {str(exc)[:120]}")
     return adapters.to_contract_quiz(QuizCreateResponse.model_validate(made), topic_id)
 
 
@@ -117,6 +122,8 @@ def make_printable_quiz(
         raise HTTPException(status_code=404, detail="topic not found in this course")
     except quiz_service.QuizGenerationError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
+    except (httpx.HTTPError, RuntimeError) as exc:   # the model could not be reached (timeout, rate limit, bad key)
+        raise HTTPException(status_code=503, detail=f"the quiz model could not be reached, try again: {str(exc)[:120]}")
     quiz_id = made["quiz_id"] if isinstance(made, dict) else made.quiz_id
     path = sheet_path(quiz_id)
     if not path.exists():
@@ -160,11 +167,15 @@ def quiz_print_pdf(
     """The questions plus a bubble answer sheet, as a PDF. Works for any quiz of the student."""
     quiz_id = _resolve_quiz_id(session, user_id, quiz_id, room_id)
     items = _items_or_http_error(session, user_id, quiz_id)
-    path = sheet_path(quiz_id)
+    typed = any(it.kind != "mcq" for it in items)   # bubbles only hold mcq: other quizzes get a questions-only PDF
+    path = questions_path(quiz_id) if typed else sheet_path(quiz_id)
     if not path.exists():
         try:
-            build_sheet_pdf(quiz_id, items, path)
-        except ValueError as exc:
+            if typed:
+                build_questions_pdf(quiz_id, items, path)
+            else:
+                build_sheet_pdf(quiz_id, items, path)
+        except (ValueError, RuntimeError) as exc:   # RuntimeError: no Unicode font found (set PDF_FONT_DIR)
             raise HTTPException(status_code=422, detail=str(exc))
     return FileResponse(path, media_type="application/pdf", filename=f"{quiz_id}.pdf",
                         headers={"X-Quiz-Id": quiz_id})
@@ -186,8 +197,13 @@ def quiz_report_pdf(
     if not rows:
         raise HTTPException(status_code=409, detail="submit the quiz first, then ask for the report")
     chosen = {r.item_id: (None if r.chosen < 0 else r.chosen) for r in rows}
+    by_item = {r.item_id: r for r in rows}
     quiz = {"quiz_id": quiz_id, "items": [it.model_dump() for it in items]}
-    result = {"answers": [{"item_id": it.item_id, "choice": chosen.get(it.item_id)} for it in items]}
+    result = {"answers": [{"item_id": it.item_id, "choice": chosen.get(it.item_id),
+                           "text": by_item[it.item_id].answer_text if it.item_id in by_item else "",
+                           "score": (None if it.item_id not in by_item or by_item[it.item_id].needs_review
+                                     else answer_score(by_item[it.item_id]))}
+                          for it in items]}
     out = sheet_path(quiz_id).with_name(f"{quiz_id}-report.pdf")
     build_report(quiz, result, out)
     return FileResponse(out, media_type="application/pdf", filename=f"{quiz_id}-report.pdf",
@@ -237,6 +253,7 @@ def submit_quiz(
     body: SubmitBody,
     session: Session = Depends(get_session),
     user_id: str = Depends(current_user_id),
+    grader_llm=Depends(get_grader_llm),
 ) -> dict:
     try:
         items = quiz_service.get_quiz_items(session, quiz_id=quiz_id, user_id=user_id)
@@ -253,6 +270,7 @@ def submit_quiz(
             quiz_id=quiz_id,
             user_id=user_id,
             answers=adapters.answers_to_choices(items, body.answers),
+            grader_llm=grader_llm,
         )
     except quiz_service.AlreadySubmitted:
         raise HTTPException(status_code=409, detail="this quiz was already submitted")
@@ -269,6 +287,8 @@ def _tell_the_teacher(room_id: str, user_id: str, items, answers: list[str]) -> 
 
         by_topic: dict[str, list[dict]] = {}
         for item, chosen in zip(items, answers):
+            if not item.is_choice:   # the class report lists wrong OPTIONS; typed answers have none
+                continue
             by_topic.setdefault(item.topic_id, []).append(
                 {"question": item.stem, "chosen": chosen, "correct": item.options[item.right_choice]})
         for topic_id, rows in by_topic.items():

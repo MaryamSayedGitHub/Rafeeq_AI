@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import random
+from concurrent.futures import ThreadPoolExecutor
 import uuid
 from typing import Callable, Optional
 
@@ -24,7 +25,8 @@ from rafeeq.quiz.contracts import (
 from rafeeq.quiz.profile import service as profile_service
 from rafeeq.quiz.profile.models import TopicMasteryRow
 from rafeeq.quiz.quiz.generator import LLM, generate_quiz
-from rafeeq.quiz.quiz.models import AnswerRow, QuizItemRow, QuizRow
+from rafeeq.quiz.quiz.grading import Grade, grade_typed_answer
+from rafeeq.quiz.quiz.models import AnswerRow, QuizItemRow, QuizRow, answer_score
 
 # M5's approved-items: (room_id, weak_topic_ids) -> lecturer-approved items
 ApprovedFn = Callable[[str, list[str]], list[QuizItem]]
@@ -59,7 +61,11 @@ def create_quiz(
     rng: Optional[random.Random] = None,
     topic_id: Optional[str] = None,
     verifier: Optional[LLM] = None,
+    kinds: tuple[str, ...] = ("mcq",),
 ) -> QuizCreateResponse:
+    """`kinds`: the question types to mix. A paper quiz is always mcq (bubbles can only mark an option)."""
+    if mode == "paper":
+        kinds = ("mcq",)
     profile = profile_service.get_profile(session, user_id, room_id)
     weak = [t.topic_id for t in profile.topics if t.weak]
     if topic_id:  # student picked a topic: use only it, ignore the weak-topic mix
@@ -72,7 +78,7 @@ def create_quiz(
     # 1. lecturer-approved items first (weak topics ahead of the rest)
     items: list[QuizItem] = []
     if approved_items is not None:
-        approved = approved_items(room_id, weak)
+        approved = approved_items(room_id, weak) if "mcq" in kinds else []   # lecturer-approved items are all mcq
         if topic_id:
             approved = [it for it in approved if it.topic_id == topic_id]
         approved = sorted(approved, key=lambda it: it.topic_id not in weak)
@@ -81,7 +87,7 @@ def create_quiz(
     # 2. generate the rest from the course chunks, aimed at weak topics
     missing = n - len(items)
     if missing > 0:
-        result = generate_quiz(llm, chunks, missing, weak_topic_ids=weak, rng=rng, verifier=verifier)
+        result = generate_quiz(llm, chunks, missing, weak_topic_ids=weak, rng=rng, verifier=verifier, kinds=kinds)
         for it in result.items:
             items.append(it.model_copy(update={"item_id": f"{quiz_id}-g{len(items) + 1}"}))
 
@@ -139,8 +145,19 @@ def grade_detected(items: list[QuizItem], marks: list) -> GradeSheetResponse:
     return GradeSheetResponse(answers=answers, score=score, needs_review=review)
 
 
+GRADING_THREADS = 4
+
+
+def _grade_item(it: QuizItem, answer: Answer, grader_llm: Optional[LLM]) -> Grade:
+    """One item -> its Grade. Choice items compare the option with the key; typed items go to grading.py."""
+    if it.is_choice:
+        ok = answer.choice == it.right_choice
+        return Grade(1.0 if ok else 0.0)
+    return grade_typed_answer(it, answer.text, grader_llm)
+
+
 def submit_quiz(
-    session: Session, *, quiz_id: str, user_id: str, answers: list[Answer]
+    session: Session, *, quiz_id: str, user_id: str, answers: list[Answer], grader_llm: Optional[LLM] = None
 ) -> SubmitResponse:
     quiz = session.get(QuizRow, quiz_id)
     if quiz is None:
@@ -156,13 +173,22 @@ def submit_quiz(
         raise AlreadySubmitted(quiz_id)
 
     items = _load_items(session, quiz_id)
-    chosen = {a.item_id: a.choice for a in answers}
-    results: list[ItemResult] = []
-    per_topic: dict[str, list[bool]] = {}
+    given = {a.item_id: a for a in answers}
+    blank = lambda it: Answer(item_id=it.item_id, choice=-1, text="")  # noqa: E731
+    picked = [given.get(it.item_id) or blank(it) for it in items]
 
-    for it in items:
-        pick = chosen.get(it.item_id, -1)
-        correct = pick == it.right_choice
+    # typed answers may need an LLM call each: do them side by side (mcq / true_false are instant)
+    typed = [i for i, it in enumerate(items) if not it.is_choice and picked[i].text.strip()]
+    grades: dict[int, Grade] = {}
+    if typed:
+        with ThreadPoolExecutor(max_workers=min(GRADING_THREADS, len(typed))) as pool:
+            for i, g in zip(typed, pool.map(lambda i: _grade_item(items[i], picked[i], grader_llm), typed)):
+                grades[i] = g
+    results: list[ItemResult] = []
+    scores_by_topic: dict[str, list[float]] = {}
+
+    for i, it in enumerate(items):
+        grade = grades.get(i) or _grade_item(items[i], picked[i], grader_llm)
         session.add(
             AnswerRow(
                 quiz_id=quiz_id,
@@ -170,25 +196,32 @@ def submit_quiz(
                 user_id=user_id,
                 room_id=quiz.room_id,
                 topic_id=it.topic_id,
-                chosen=pick,
-                correct=correct,
+                chosen=picked[i].choice if it.is_choice else -1,
+                correct=grade.correct,
+                answer_text="" if it.is_choice else picked[i].text.strip()[:4000],
+                score=grade.score,
+                feedback=grade.feedback,
+                needs_review=grade.needs_review,
             )
         )
-        per_topic.setdefault(it.topic_id, []).append(correct)
+        scores_by_topic.setdefault(it.topic_id, []).append(grade.score)
         results.append(
             ItemResult(
                 item_id=it.item_id,
-                correct=correct,
+                correct=grade.correct,
                 right_choice=it.right_choice,
                 explanation=it.explanation,
                 file_name=it.file_name,
                 page=it.page,
+                score=grade.score,
+                feedback=grade.feedback,
+                needs_review=grade.needs_review,
             )
         )
     session.commit()
 
-    # one quiz event per topic: the score is the share answered correctly
-    for topic_id, flags in per_topic.items():
+    # one quiz event per topic: the score is the average share of the marks in that topic
+    for topic_id, topic_scores_ in scores_by_topic.items():
         profile_service.record_event(
             session,
             Event(
@@ -196,13 +229,13 @@ def submit_quiz(
                 room_id=quiz.room_id,
                 topic_id=topic_id,
                 kind="quiz",
-                score=sum(flags) / len(flags),
-                meta={"quiz_id": quiz_id, "items": len(flags)},
+                score=sum(topic_scores_) / len(topic_scores_),
+                meta={"quiz_id": quiz_id, "items": len(topic_scores_)},
             ),
         )
 
     total = len(results)
-    score = sum(r.correct for r in results) / total if total else 0.0
+    score = sum(r.score for r in results) / total if total else 0.0
     return SubmitResponse(score=score, items=results)
 
 
@@ -219,7 +252,7 @@ def quiz_history(session: Session, *, user_id: str, room_id: str) -> list[dict]:
         correct = sum(a.correct for a in answers)
         history.append({
             "quiz_id": quiz_id, "submitted_at": max(a.created_at for a in answers).isoformat(),
-            "total": len(answers), "correct": correct, "score": correct / len(answers),
+            "total": len(answers), "correct": correct, "score": sum(answer_score(a) for a in answers) / len(answers),
             "topic_ids": sorted({a.topic_id for a in answers}),
         })
     history.sort(key=lambda h: h["submitted_at"], reverse=True)
@@ -235,9 +268,9 @@ def topic_scores(session: Session, *, user_id: str, room_id: str) -> list[dict]:
     rows = session.scalars(
         select(AnswerRow).where(AnswerRow.user_id == user_id, AnswerRow.room_id == room_id)
     ).all()
-    per_quiz: dict[tuple[str, str], list[bool]] = {}
+    per_quiz: dict[tuple[str, str], list[float]] = {}
     for r in rows:
-        per_quiz.setdefault((r.topic_id, r.quiz_id), []).append(r.correct)
+        per_quiz.setdefault((r.topic_id, r.quiz_id), []).append(answer_score(r))
     by_topic: dict[str, list[float]] = {}
     for (topic_id, _), flags in per_quiz.items():
         by_topic.setdefault(topic_id, []).append(sum(flags) / len(flags))
@@ -262,10 +295,15 @@ def quiz_review(session: Session, *, user_id: str, quiz_id: str) -> dict:
             "item_id": it.item_id, "topic_id": it.topic_id, "text": it.stem, "options": list(it.options),
             "chosen": chosen if 0 <= chosen < len(it.options) else None, "right_choice": it.right_choice,
             "correct": bool(a and a.correct), "explanation": it.explanation, "file_name": it.file_name, "page": it.page,
+            # the question types beyond mcq: what the student typed, the model answer, the marks and the feedback
+            "kind": it.kind, "student_answer": a.answer_text if a else "", "model_answer": it.answer,
+            "rubric": list(it.rubric), "score": answer_score(a) if a else 0.0,
+            "feedback": (a.feedback if a else "") or "", "needs_review": bool(a and a.needs_review),
         })
     correct = sum(q["correct"] for q in questions)
     return {"quiz_id": quiz_id, "submitted_at": max(a.created_at for a in answers.values()).isoformat(),
-            "total": len(questions), "correct": correct, "score": correct / len(questions) if questions else 0.0,
+            "total": len(questions), "correct": correct,
+            "score": sum(q["score"] for q in questions) / len(questions) if questions else 0.0,
             "questions": questions}
 
 

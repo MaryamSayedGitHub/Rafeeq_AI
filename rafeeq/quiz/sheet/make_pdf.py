@@ -35,6 +35,46 @@ def sheet_path(quiz_id: str) -> Path:
     return sheets_dir() / f"{quiz_id}.pdf"
 
 
+def questions_path(quiz_id: str) -> Path:
+    """The questions-only PDF (for quizzes that have typed questions): its own file, next to the bubble sheet."""
+    return sheet_path(quiz_id).with_name(f"{quiz_id}-questions.pdf")
+
+
+WRITING_LINES = {"short": 1, "math": 4, "problem": 9, "essay": 13, "mcq": 0, "true_false": 0}
+
+
+def questions_markdown(quiz_id: str, items) -> str:
+    """The quiz as a printable document: the questions, the options for choice questions and blank lines to write on."""
+    lines = [f"# Rafeeq quiz {quiz_id}", "Name: ................................   Date: ................", ""]
+    for i, it in enumerate(items, 1):
+        lines.append(f"### {i}. {it.stem}")
+        if it.options:
+            lines += [f"{LETTERS[j] if j < 4 else j + 1}) {opt}" for j, opt in enumerate(it.options)]
+        lines += ["." * 72] * WRITING_LINES.get(it.kind, 0)
+        lines.append("")
+    return "\n".join(lines)
+
+
+def build_questions_pdf(quiz_id: str, items, out_path: Path | str) -> Path:
+    """A coloured printable PDF for ANY mix of question types (no bubbles, so it cannot be graded from a photo).
+    Uses the Unicode font of the tutor's export, so Arabic questions print correctly."""
+    out = Path(out_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        from rafeeq.quiz.sheet.styled_pdf import quiz_pdf
+
+        out.write_bytes(quiz_pdf(quiz_id, items))
+    except RuntimeError:
+        raise    # no Unicode font: the plain writer needs the same one, so say so
+    except Exception:   # a layout bug must not stop a student from printing the quiz: use the plain document
+        import logging
+        from rafeeq.tutor.export import to_pdf
+
+        logging.getLogger(__name__).exception("styled quiz PDF failed, writing the plain one")
+        out.write_bytes(to_pdf(questions_markdown(quiz_id, items)))
+    return out
+
+
 def _fitz():
     try:
         import pymupdf as fitz
@@ -68,6 +108,8 @@ def _put(page, fitz, x0: float, x1: float, y: float, text: str, size: float,
 def build_sheet_pdf(quiz_id: str, items, out_path: Path | str, n: int | None = None) -> Path:
     """`items` = list of QuizItem (questions get printed). With items=None only the sheet is made, for `n` questions."""
     fitz = _fitz()
+    if items is not None and any(getattr(it, "kind", "mcq") != "mcq" for it in items):
+        raise ValueError("a printed answer sheet has bubbles, so it can only hold multiple-choice questions")
     count = len(items) if items is not None else n
     if not count or not 1 <= count <= L.MAX_ITEMS:
         raise ValueError(f"need 1..{L.MAX_ITEMS} questions")

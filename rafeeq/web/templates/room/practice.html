@@ -30,6 +30,12 @@
           {% for n in (3, 5, 10) %}<option value="{{ n }}" {% if n == 5 %}selected{% endif %}>{{ n }}</option>{% endfor %}
         </select>
       </div>
+      <fieldset class="field kind-picker">
+        <legend>{{ t('practice.kinds') }}</legend>
+        {% for k in ('mcq', 'true_false', 'short', 'math', 'problem', 'essay') %}
+        <label class="choice choice-inline"><input type="checkbox" name="kinds" value="{{ k }}" {% if k == 'mcq' %}checked{% endif %}><span>{{ t('kind.' ~ k) }}</span></label>
+        {% endfor %}
+      </fieldset>
       <button class="btn btn-primary" type="submit">{{ icon('quiz', 18) }}<span>{{ t('practice.start') }}</span></button>
     </form>
     <div class="htmx-indicator inline-loading" id="quiz-indicator"><span class="spinner"></span>{{ t('practice.preparing') }}</div>
