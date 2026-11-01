@@ -6,7 +6,7 @@ One command runs every feature's suite and writes one report:
 uv run python evals/run_all.py                  # everything, offline (about 10 seconds)
 uv run python evals/run_all.py --only montage   # one suite
 uv run python evals/run_all.py --live           # also the checks that call the models (Groq generator, Gemini judge)
-uv run python evals/run_all.py --no-upload      # keep the results local (no LangSmith / Langfuse)
+uv run python evals/run_all.py --report-only    # rebuild the report from LangSmith + Langfuse, run nothing
 uv run python evals/run_all.py --no-fail        # always exit 0
 ```
 
@@ -54,9 +54,22 @@ status is 1 when a gate fails, so CI can refuse a merge that makes a feature wor
 | inbox | the same question always gets the teacher's answer; rewordings are reused; DIFFERENT questions on the same topic must not get a wrong answer (the threshold sweep is in the JSON) |
 | parent_batch | 24 sheet layouts parse; Egyptian phone numbers (including the Excel version that lost its 0) become the wa.me number; a contact never goes to the wrong student |
 
-## LangSmith and Langfuse
+## Where the numbers come from: LangSmith and Langfuse
 
-Both are optional and both get the same numbers as `report.md`. Set them in `.env`:
+Each tool has one job, and the report only READS numbers from them:
+
+| | LangSmith = offline evaluation | Langfuse = monitoring |
+|---|---|---|
+| data | dataset `rafeeq-m5-<feature>` (one example per test case, kept in sync with the suite) | the real traces of every feature (the app sends them) |
+| who runs it | `langsmith.evaluate()`: LangSmith calls the feature for each example, then runs our evaluator on the run | Langfuse's own LLM-as-a-judge evaluators (`evals/langfuse_eval.py` creates them + their rules) score every trace of a feature: this run's and real use |
+| what is measured | evaluator feedback per run: code checks + Gemini judge | count, latency p50/p95, error rate, tokens, cost, average of each score, per environment |
+| in the report | mean of each feedback key over the cases, run latency, runs with an error | the "Monitoring (Langfuse)" table (`default` = the app, `evaluation` = evaluation runs) |
+| in the UI | Datasets & Experiments › rafeeq-m5-<feature> › the experiment | Tracing, Dashboards, Scores |
+
+`evals/langsmith_eval.py` (sync dataset → run experiment → read runs + feedback back) and `evals/langfuse_monitor.py`
+(Metrics API queries). `--report-only` rebuilds the report from the newest experiment of each dataset without running anything.
+
+Set in `.env` (and `uv add langfuse` once):
 
 ```
 LANGSMITH_TRACING=true
@@ -64,23 +77,13 @@ LANGSMITH_API_KEY=lsv2_...
 LANGSMITH_PROJECT=rafeeq
 LANGFUSE_PUBLIC_KEY=pk-lf-...
 LANGFUSE_SECRET_KEY=sk-lf-...
-LANGFUSE_BASE_URL=https://cloud.langfuse.com      # or https://us.cloud.langfuse.com
+LANGFUSE_BASE_URL=https://cloud.langfuse.com
 ```
 
-and install the Langfuse SDK once: `uv add langfuse`.
-
-What you get per run:
-
-| | LangSmith | Langfuse |
-|---|---|---|
-| every live case | a trace `eval · <suite> · <case>` with every LangGraph node / LLM / judge call nested | the same trace, with its scores attached |
-| every suite | dataset `rafeeq-m5-<suite>` + an experiment `<suite>-...` (per-case scores, `suite.<metric>` summary scores) | dataset `rafeeq-m5-<suite>` + a dataset run `<suite> <time>` (item scores + run scores) |
-| the app itself | LangGraph runs (lecturer, montage team) + `traced()` direct calls | the same through the LangChain callback + `traced()` |
-
-How it works (`evals/observe.py`): each case runs ONCE on your machine inside both traces; the scorers (and the judge)
-run inside the same trace. Then the saved outputs and scores are replayed into each platform's experiment API, so no
-model is called twice and both dashboards agree with the report. A missing key or a network error never breaks the
-local report; the report says where each suite was published.
+`run_all.py` sets up Langfuse's judges by itself (`uv run python evals/langfuse_eval.py` does only that): an LLM connection
+`google-ai-studio` from GOOGLE_API_KEY (only if the project has none), one evaluator `rafeeq · <feature>` per feature and
+one rule per feature (root traces with the feature's tag or trace name). Their scores show as `langfuse_judge` under
+each feature (this run) and in the monitoring table (real use).
 
 ## Live suites (one per feature, `--live`)
 

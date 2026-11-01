@@ -36,6 +36,24 @@ class Metric:
         return {**asdict(self), "status": self.status}
 
 
+@dataclass
+class Spec:
+    """How one report number is read from LangSmith: the mean of feedback `key` over the cases, times `scale`
+    (100 for a share shown in %). Special keys: '@median_seconds' (run latency) and '@crashed' (runs with an error)."""
+    name: str
+    key: str
+    unit: str = ""
+    gate: float | None = None
+    higher_is_better: bool = True
+    note: str = ""
+    scale: float = 1.0
+
+
+def pct(name: str, key: str, gate: float | None = None, note: str = "", higher_is_better: bool = True) -> Spec:
+    """A 0-1 score shown as a percentage."""
+    return Spec(name, key, "%", gate, higher_is_better, note, 100.0)
+
+
 # ------------------------------------------------------------------ helpers
 def overlap(a: list[tuple[float, float]], b: list[tuple[float, float]]) -> float:
     """Total seconds covered by BOTH lists of (start, end) ranges."""

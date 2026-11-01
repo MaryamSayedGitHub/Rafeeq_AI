@@ -11,7 +11,7 @@ import os
 import time
 
 from evals import judge, observe
-from evals.core import Metric
+from evals.core import Metric, Spec, pct
 
 NAME = "video_discovery"
 DESCRIPTION = "YouTube moments for lecturer questions: found, top-1 relevance and precision@3 (judge), valid timestamps, speed"
@@ -95,23 +95,16 @@ def repeat_stable(i, o, e):
 SCORERS = {f.__name__: f for f in (found, top1_relevant, precision_at_3, timestamps_valid, first_seconds, repeat_seconds, repeat_stable)}
 
 
-def summarize(rows: list[dict]) -> list[Metric]:
-    first = [r["scores"]["first_seconds"] for r in rows if "first_seconds" in r["scores"]]
-    repeat = [r["scores"]["repeat_seconds"] for r in rows if "repeat_seconds" in r["scores"]]
-    med = lambda v: round(sorted(v)[len(v) // 2], 2) if v else None                  # noqa: E731
-    return [
-        Metric("questions_answered", observe.pct(rows, "found"), "%", gate=85.0,
-               note=f"{len(rows)} lecturer questions (en + ar) that got at least one moment above the similarity floor"),
-        Metric("top1_relevant", observe.pct(rows, "top1_relevant"), "%", gate=75.0,
-               note="judge: watching the first moment answers the question"),
-        Metric("precision_at_3", observe.pct(rows, "precision_at_3"), "%", gate=60.0, note="judge: relevant moments among the top 3"),
-        Metric("timestamps_valid", observe.pct(rows, "timestamps_valid"), "%", gate=100.0, note="every moment has 0 ≤ start < end"),
-        Metric("repeat_stable", observe.pct(rows, "repeat_stable"), "%", gate=90.0, note="asking again gives the same first moment"),
-        Metric("median_first_search", med(first), "s", higher_is_better=False, note="new question: search + transcripts + embeddings"),
-        Metric("median_repeat_search", med(repeat), "s", higher_is_better=False, note="same question again: segments already in pgvector"),
-        Metric("crashed", observe.error_rate(rows), "%", higher_is_better=False, gate=10.0, note="questions that raised an error"),
-    ]
-
+SPEC = [
+    pct("questions_answered", "found", 85.0, "lecturer questions (en + ar) that got at least one moment above the similarity floor"),
+    pct("top1_relevant", "top1_relevant", 75.0, "judge: watching the first moment answers the question"),
+    pct("precision_at_3", "precision_at_3", 60.0, "judge: relevant moments among the top 3"),
+    pct("timestamps_valid", "timestamps_valid", 100.0, "every moment has 0 <= start < end"),
+    pct("repeat_stable", "repeat_stable", 90.0, "asking again gives the same first moment"),
+    Spec("mean_first_search", "first_seconds", "s", None, False, "new question: search + transcripts + embeddings"),
+    Spec("mean_repeat_search", "repeat_seconds", "s", None, False, "same question again: segments already in pgvector"),
+    Spec("crashed", "@crashed", "%", 10.0, False, "questions whose run ended with an error"),
+]
 
 def run(ctx: dict) -> list[Metric]:
     import sys
