@@ -74,13 +74,11 @@ def test_language_check_used_by_the_live_suites():
     assert not observe.in_language("التمثيل الضوئي", "English")
 
 
-def test_case_runner_scores_each_case_and_keeps_crashes_as_results(monkeypatch):
-    """The live suites all go through run_case_suite: a crash is a result, a broken scorer is 'no score'."""
+def test_case_runner_scores_each_case_and_keeps_crashes_as_results():
+    """The same scoring the LangSmith evaluator uses: a crash is a result, a broken scorer is 'no score'."""
     import types
 
     from evals import observe
-    for key in ("LANGSMITH_TRACING", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
-        monkeypatch.delenv(key, raising=False)
 
     def target(inp):
         if inp["x"] < 0:
@@ -92,17 +90,37 @@ def test_case_runner_scores_each_case_and_keeps_crashes_as_results(monkeypatch):
         cases=lambda: [{"id": "a", "input": {"x": 1}, "expected": 2}, {"id": "b", "input": {"x": 2}, "expected": 5},
                        {"id": "c", "input": {"x": -1}, "expected": 0}],
         SCORERS={"exact": lambda i, o, e: float(o["y"] == e), "broken": lambda i, o, e: 1 / 0},
-        summarize=lambda rows: [core.Metric("exact", observe.pct(rows, "exact"), "%", gate=50.0),
-                                core.Metric("crashed", observe.error_rate(rows), "%", higher_is_better=False, gate=10.0)])
+        SPEC=[core.pct("exact", "exact", 50.0), core.Spec("crashed", "@crashed", "%", 10.0, False)])
     skipped = observe.run_case_suite(mod, {"live": False})
-    assert [m.status for m in skipped] == ["SKIPPED", "SKIPPED"]
-    ctx = {"live": True, "no_upload": True}
+    assert [m.status for m in skipped] == ["SKIPPED", "SKIPPED"] and all(m.gate is not None for m in skipped)
+    ctx = {"live": True}
     exact, crashed = observe.run_case_suite(mod, ctx)
     assert exact.value == 50.0 and exact.status == "PASS"                    # a: right, b: wrong, c: crashed (no score)
     assert crashed.value == pytest.approx(33.3) and crashed.status == "FAIL"
     rows = ctx["rows"]["fake"]
     assert all("broken" not in r["scores"] for r in rows) and rows[2]["error"].startswith("ValueError")
-    assert observe.publish(mod, ctx, []) == {}                                 # --no-upload
+
+
+def test_langsmith_dataset_and_evaluator_shape(monkeypatch):
+    """What is sent to LangSmith: one example per case (+ a checks example), feedback keys = the scorers."""
+    import types
+
+    from evals import judge, langsmith_eval
+    monkeypatch.setattr(judge, "available", lambda: False)                    # no real Gemini call in a unit test
+    from evals.suites import story_video
+
+    rows = langsmith_eval.wanted_examples(story_video)
+    assert [r["inputs"]["case_id"] for r in rows][-1] == "checks" and len(rows) == len(story_video.cases()) + 1
+    ev = langsmith_eval.make_evaluator(story_video)
+    case = story_video.cases()[0]
+    out = {"scenes": [{"visual": f"shot {k} of the sea", "narration": "word " * 20} for k in range(case["expected"]["scenes"])]}
+    res = ev(types.SimpleNamespace(outputs=out, error=None),
+             types.SimpleNamespace(inputs={"case_id": case["id"], "input": case["input"]}, outputs={"expected": case["expected"]}))
+    keys = {r["key"] for r in res["results"]}
+    assert {"scenes_exact", "narration_rule", "language_match"} <= keys
+    checks = ev(types.SimpleNamespace(outputs={"metrics": [core.Metric("planner_guards", 100.0, "%", gate=100.0).as_dict()]}, error=None),
+                types.SimpleNamespace(inputs={"case_id": "checks", "checks": True}, outputs={}))
+    assert checks["results"][0] == {"key": "planner_guards", "score": 100.0, "comment": ""}
 
 
 def test_report_follows_the_presentation_order():

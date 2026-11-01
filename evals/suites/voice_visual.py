@@ -14,7 +14,7 @@ import json
 import os
 
 from evals import judge, observe
-from evals.core import Metric
+from evals.core import Metric, Spec, pct
 
 NAME = "voice_visual"
 DESCRIPTION = "Voice to Visual (future): planned moments on teaching lines, coverage, rule-following prompts, judge grade; plan clean-up"
@@ -167,20 +167,16 @@ def judge_prompts(i, o, e):
 SCORERS = {f.__name__: f for f in (has_plan, on_teaching_line, teaching_coverage, rules_followed, label_language, judge_prompts)}
 
 
-def summarize(rows: list[dict]) -> list[Metric]:
-    return [
-        Metric("lectures_with_plan", observe.pct(rows, "has_plan"), "%", gate=100.0, note=f"{len(rows)} labelled lectures that got at least one moment"),
-        Metric("moments_on_teaching_lines", observe.pct(rows, "on_teaching_line"), "%", gate=80.0,
-               note="precision: planned moments that start on a line labelled as teaching (not greetings / announcements)"),
-        Metric("teaching_coverage", observe.pct(rows, "teaching_coverage"), "%", gate=80.0,
-               note="of the pictures the planner is asked for, how many land on different teaching lines"),
-        Metric("rules_followed", observe.pct(rows, "rules_followed"), "%", gate=95.0, note="kind, prompt or GIF query, 3-12 s, no overlap"),
-        Metric("label_language", observe.pct(rows, "label_language"), "%", gate=90.0, note="labels in the lecture's language"),
-        Metric("judge_prompts", observe.mean(rows, "judge_prompts"), "", gate=0.7, note="Gemini judge, 1-5 mapped to 0-1: the picture matches what was said"),
-        Metric("median_plan_seconds", observe.median_seconds(rows), "s", higher_is_better=False, note="captions -> plan"),
-        Metric("crashed", observe.error_rate(rows), "%", higher_is_better=False, gate=10.0, note="lectures where planning failed"),
-    ]
-
+SPEC = [
+    pct("lectures_with_plan", "has_plan", 100.0, "labelled lectures that got at least one moment"),
+    pct("moments_on_teaching_lines", "on_teaching_line", 80.0, "precision: planned moments that start on a line labelled as teaching"),
+    pct("teaching_coverage", "teaching_coverage", 80.0, "of the pictures the planner is asked for, how many land on different teaching lines"),
+    pct("rules_followed", "rules_followed", 95.0, "kind, prompt or GIF query, 3-12 s, no overlap"),
+    pct("label_language", "label_language", 90.0, "labels in the lecture's language"),
+    Spec("judge_prompts", "judge_prompts", "", 0.7, True, "Gemini judge, 1-5 mapped to 0-1: the picture matches what was said"),
+    Spec("median_plan_seconds", "@median_seconds", "s", None, False, "captions -> plan (LangSmith run latency)"),
+    Spec("crashed", "@crashed", "%", 10.0, False, "lectures where planning failed"),
+]
 
 def offline(ctx: dict) -> list[Metric]:
     from rafeeq.teacher.voice_visual import clean_plan

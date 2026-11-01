@@ -12,7 +12,7 @@ import json
 import os
 
 from evals import judge, observe
-from evals.core import Metric
+from evals.core import Metric, Spec, pct
 
 NAME = "story_video"
 DESCRIPTION = "Story planner: scene count, narration rule, distinct scenes, language, judge grade of the teaching arc; planner guards"
@@ -82,17 +82,15 @@ def judge_arc(i, o, e):
 SCORERS = {f.__name__: f for f in (scenes_exact, narration_rule, distinct_scenes, language_match, judge_arc)}
 
 
-def summarize(rows: list[dict]) -> list[Metric]:
-    return [
-        Metric("scene_count_exact", observe.pct(rows, "scenes_exact"), "%", gate=100.0, note=f"{len(rows)} topics: exactly the scenes asked for"),
-        Metric("narration_in_rule", observe.pct(rows, "narration_rule"), "%", gate=80.0, note="narrations of 18-32 words (fits one clip)"),
-        Metric("distinct_scenes", observe.pct(rows, "distinct_scenes"), "%", gate=90.0, note="scenes whose picture is not a copy of another scene"),
-        Metric("language_match", observe.pct(rows, "language_match"), "%", gate=95.0, note="narration in the chosen language"),
-        Metric("judge_arc", observe.mean(rows, "judge_arc"), "", gate=0.7, note="Gemini judge, 1-5 mapped to 0-1: hook, ordered steps, recap, correct facts"),
-        Metric("median_plan_seconds", observe.median_seconds(rows), "s", higher_is_better=False, note="topic -> scene plan"),
-        Metric("crashed", observe.error_rate(rows), "%", higher_is_better=False, gate=10.0, note="topics where the planner failed"),
-    ]
-
+SPEC = [
+    pct("scene_count_exact", "scenes_exact", 100.0, "exactly the scenes asked for"),
+    pct("narration_in_rule", "narration_rule", 80.0, "narrations of 18-32 words (fits one clip)"),
+    pct("distinct_scenes", "distinct_scenes", 90.0, "scenes whose picture is not a copy of another scene"),
+    pct("language_match", "language_match", 95.0, "narration in the chosen language"),
+    Spec("judge_arc", "judge_arc", "", 0.7, True, "Gemini judge, 1-5 mapped to 0-1: hook, ordered steps, recap, correct facts"),
+    Spec("median_plan_seconds", "@median_seconds", "s", None, False, "topic -> scene plan (LangSmith run latency)"),
+    Spec("crashed", "@crashed", "%", 10.0, False, "topics where the planner failed"),
+]
 
 class _Scripted:
     """A fake model: answers every prompt with the same text."""

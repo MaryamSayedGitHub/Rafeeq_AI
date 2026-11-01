@@ -16,7 +16,7 @@ import tempfile
 from pathlib import Path
 
 from evals import judge, observe
-from evals.core import Metric
+from evals.core import Metric, Spec, pct
 from evals.fakes import FakeStore
 
 NAME = "lesson_studio"
@@ -184,28 +184,20 @@ SCORERS = {f.__name__: f for f in (complete, quiz_count_exact, quiz_well_formed,
                                    language_match, bullet_rule, judge_grade, pptx_ok, export_versioning)}
 
 
-def summarize(rows: list[dict]) -> list[Metric]:
-    n = len(rows)
-    return [
-        Metric("drafts_complete", observe.pct(rows, "complete"), "%", gate=90.0,
-               note=f"{n} briefs: reached the approval step with every part the lecturer asked for"),
-        Metric("quiz_count_exact", observe.pct(rows, "quiz_count_exact"), "%", gate=90.0, note="exactly the number of questions asked for"),
-        Metric("quiz_well_formed", observe.pct(rows, "quiz_well_formed"), "%", gate=95.0, note="4 different options and a valid answer index"),
-        Metric("quiz_key_agreement", observe.pct(rows, "quiz_key_agreement"), "%", gate=80.0,
-               note="the judge answers the quiz without the key; share of questions where it picks the keyed answer"),
-        Metric("code_verified", observe.pct(rows, "code_verified"), "%", gate=80.0,
-               note="code examples the code agent ran successfully in the sandbox (after its fix attempts)"),
-        Metric("language_match", observe.pct(rows, "language_match"), "%", gate=90.0, note="slides written in the brief's language"),
-        Metric("slide_bullet_rule", observe.pct(rows, "bullet_rule"), "%", gate=80.0, note="slides with 3-5 bullets of ≤ 12 words"),
-        Metric("judge_grade", observe.mean(rows, "judge_grade"), "", gate=0.7,
-               note="Gemini judge, 1-5 grade mapped to 0-1 (accuracy, objectives, order); a factual error caps it at 2"),
-        Metric("pptx_export_ok", observe.pct(rows, "pptx_ok"), "%", gate=100.0, note="Presentations: the exported .pptx opens and has every slide"),
-        Metric("export_versioning", observe.pct(rows, "export_versioning"), "%", gate=100.0,
-               note="Presentations: exporting again makes version 2 linked to version 1 in My library"),
-        Metric("median_seconds", observe.median_seconds(rows), "s", higher_is_better=False, note="brief -> draft ready for approval"),
-        Metric("crashed", observe.error_rate(rows), "%", higher_is_better=False, gate=10.0, note="briefs that raised an error"),
-    ]
-
+SPEC = [
+    pct("drafts_complete", "complete", 90.0, "reached the approval step with every part the lecturer asked for"),
+    pct("quiz_count_exact", "quiz_count_exact", 90.0, "exactly the number of questions asked for"),
+    pct("quiz_well_formed", "quiz_well_formed", 95.0, "4 different options and a valid answer index"),
+    pct("quiz_key_agreement", "quiz_key_agreement", 80.0, "the judge answers the quiz without the key; share of questions where it picks the keyed answer"),
+    pct("code_verified", "code_verified", 80.0, "code examples the code agent ran successfully in the sandbox (after its fix attempts)"),
+    pct("language_match", "language_match", 90.0, "slides written in the brief's language"),
+    pct("slide_bullet_rule", "bullet_rule", 80.0, "slides with 3-5 bullets of at most 12 words"),
+    Spec("judge_grade", "judge_grade", "", 0.7, True, "Gemini judge, 1-5 grade mapped to 0-1 (accuracy, objectives, order); a factual error caps it at 2"),
+    pct("pptx_export_ok", "pptx_ok", 100.0, "Presentations: the exported .pptx opens and has every slide"),
+    pct("export_versioning", "export_versioning", 100.0, "Presentations: exporting again makes version 2 linked to version 1 in My library"),
+    Spec("median_seconds", "@median_seconds", "s", None, False, "brief -> draft ready for approval (LangSmith run latency)"),
+    Spec("crashed", "@crashed", "%", 10.0, False, "briefs whose run ended with an error"),
+]
 
 def run(ctx: dict) -> list[Metric]:
     import sys
