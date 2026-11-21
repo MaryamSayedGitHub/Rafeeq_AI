@@ -31,6 +31,7 @@ S: dict[str, tuple[str, str]] = {
     "tab.students": ("الطلاب", "Students"),
     "tab.inbox": ("أسئلة الطلاب", "Student questions"),
     "tab.insights": ("تحليل الصف", "Class insights"),
+    "tab.bank": ("بنك الأسئلة", "Question bank"),
     "tab.studio": ("تحضير الدروس", "Lesson studio"),
     "footer": ("رفيق · المذاكرة من مادتك", "Rafeeq · Study from your own material"),
 

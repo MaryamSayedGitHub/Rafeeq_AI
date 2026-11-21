@@ -37,7 +37,7 @@
   </div>
   <nav class="side-nav" aria-label="{{ room.name }}">
     {% if user.role == 'teacher' %}
-      {% set tabs = [('overview','dashboard'), ('materials','folder'), ('students','users'), ('inbox','chat'), ('insights','chart')] %}
+      {% set tabs = [('overview','dashboard'), ('materials','folder'), ('students','users'), ('inbox','chat'), ('insights','chart'), ('bank','quiz')] %}
     {% else %}
       {% set tabs = [('study','chat'), ('study-files','file'), ('materials','folder'), ('practice','quiz'), ('progress','trend'), ('learn','book')] %}
     {% endif %}

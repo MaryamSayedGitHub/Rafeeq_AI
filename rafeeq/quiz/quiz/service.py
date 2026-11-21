@@ -78,7 +78,7 @@ def create_quiz(
     # 1. lecturer-approved items first (weak topics ahead of the rest)
     items: list[QuizItem] = []
     if approved_items is not None:
-        approved = approved_items(room_id, weak) if "mcq" in kinds else []   # lecturer-approved items are all mcq
+        approved = [it for it in approved_items(room_id, weak) if it.kind in kinds]  # lecturer-approved items are all mcq
         if topic_id:
             approved = [it for it in approved if it.topic_id == topic_id]
         approved = sorted(approved, key=lambda it: it.topic_id not in weak)

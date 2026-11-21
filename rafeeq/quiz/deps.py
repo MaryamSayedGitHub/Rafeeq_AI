@@ -89,8 +89,19 @@ def material(room_fn, room_id: str, fallback: list[dict]) -> list[dict]:
 
 
 def get_approved_items():
-    # TODO: call M5's approved-items endpoint. Empty for now, so quizzes fall
-    # back to generated items without an error.
+    """Return lecturer-approved items from M6's question bank.
+
+    Falls back to an empty list when M6 is not initialised (DATABASE_URL
+    missing or the service hasn't started yet) so quizzes still work.
+    """
+    try:
+        from rafeeq.teacher.question_bank.service import get_service as get_bank
+
+        bank = get_bank()
+        if bank is not None:
+            return bank.approved_items
+    except Exception:
+        logging.getLogger(__name__).warning("M6 question bank unavailable", exc_info=True)
     return lambda room_id, topic_ids: []
 
 

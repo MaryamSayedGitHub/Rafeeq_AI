@@ -1,0 +1,322 @@
+
+{% extends "layout.html" %}
+{% from "macros.html" import section_state, empty_state %}
+{% block title %}{{ t('tab.bank') }} · {{ room.name }}{% endblock %}
+{% block content %}
+{% set ar = lang == 'ar' %}
+<div class="page-head">
+  <div>
+    <h1>{{ t('tab.bank') }}</h1>
+    <p>{{ 'اكتبي أو قولي طلبك بكلامك، مثلاً: «هاتلي ٥ أسئلة متوسطة عن الخلية».' if ar else 'Type or say what you need, e.g. "give me 5 medium questions about photosynthesis".' }}</p>
+  </div>
+</div>
+
+<section class="panel panel-pad">
+  <form id="bank-form" method="get" action="{{ u('/rooms/' ~ room.room_id ~ '/bank') }}" class="form-stack">
+    <label for="bank-q" class="sr-only">{{ 'طلبك' if ar else 'Your request' }}</label>
+    <div class="btn-row" style="align-items:stretch">
+      <input id="bank-q" name="q" type="text" dir="auto" value="{{ q }}" autocomplete="off" style="flex:1;min-inline-size:0"
+             placeholder="{{ 'هاتلي ٣ أسئلة صعبة عن…' if ar else 'give me 3 hard questions about…' }}">
+      <button type="button" id="mic" class="btn btn-light" aria-pressed="false" hidden>{{ icon('chat', 16) }}<span id="mic-label">{{ 'تكلّمي' if ar else 'Speak' }}</span></button>
+      <button type="submit" class="btn btn-primary"><span>{{ 'بحث' if ar else 'Search' }}</span></button>
+    </div>
+    <p id="mic-status" class="muted" role="status" aria-live="polite"></p>
+  </form>
+</section>
+
+{% if generated %}<div class="inline-note">{{ icon('info', 16) }}<span>{{ ('اتضاف %s سؤال للبنك.' % generated) if ar else ('%s questions added to the bank.' % generated) }}</span></div>{% endif %}
+{% if gen_error %}<div class="t-card t-error-box" role="alert"><p>{{ gen_error }}</p></div>{% endif %}
+
+<section class="panel" style="margin-block-start:16px">
+  {% if not res.ok %}
+    <div class="panel-pad">{{ section_state(t, res) }}</div>
+  {% else %}
+    {% set items = res.data['items'] %}
+    <div class="panel-pad">
+      {% if searched %}
+        <p><strong>{{ res.data.message }}</strong>
+          <span class="muted" dir="auto">({{ res.data.total }}{% if res.data.requested %} / {{ res.data.requested }}{% endif %})</span></p>
+        {% set u_ = res.data.understood %}
+        <p class="muted" dir="auto">
+          {{ 'فهمت:' if ar else 'Understood:' }}
+          {% if u_.n %}<span class="badge badge-gray">n={{ u_.n }}</span>{% endif %}
+          {% if u_.difficulty %}<span class="badge badge-blue">{{ u_.difficulty }}</span>{% endif %}
+          {% for d in u_.difficulties %}<span class="badge badge-blue">{{ d }}</span>{% endfor %}
+          {% for k in u_.kinds %}<span class="badge badge-gray">{{ k }}</span>{% endfor %}
+          {% if u_.topic_query %}<span class="badge badge-amber">{{ u_.topic_query }}</span>{% endif %}
+          {% if u_.approved_only %}<span class="badge badge-green">{{ 'معتمدة فقط' if ar else 'approved only' }}</span>{% endif %}
+        </p>
+      {% else %}
+        <p class="muted">{{ 'أحدث الأسئلة في البنك (%s)' % res.data.total if ar else 'Newest questions in the bank (%s)' % res.data.total }}</p>
+        <p dir="auto">
+          <span class="badge badge-green">easy {{ levels.easy }}</span>
+          <span class="badge badge-blue">medium {{ levels.medium }}</span>
+          <span class="badge badge-red">hard {{ levels.hard }}</span>
+          {% if levels.unrated %}<span class="badge badge-gray">{{ 'بدون مستوى' if ar else 'unrated' }} {{ levels.unrated }}</span>{% endif %}
+        </p>
+      {% endif %}
+    </div>
+    {% if not items %}
+      {% call empty_state('quiz', ('مفيش أسئلة هنا' if ar else 'No questions here'), ('ولّدي أسئلة من مواد الغرفة بالأسفل.' if ar else 'Generate questions from the room material below.')) %}{% endcall %}
+    {% else %}
+    <ul class="inbox-list">
+      {% for b in items %}
+      <li class="inbox-item {{ 'is-answered' if b.approved else 'is-open' }}">
+        <div class="inbox-head">
+          <span>
+            <span class="badge badge-gray">{{ b.item.kind }}</span>
+            {% if b.difficulty %}<span class="badge badge-blue">{{ b.difficulty }}</span>{% endif %}
+            {% if searched and b.item.item_id in res.data.related_ids %}<span class="badge badge-gray" title="{{ 'قريب من الموضوع وليس مطابقاً له' if ar else 'Close to the subject, not an exact match' }}">{{ 'قريب' if ar else 'related' }}</span>{% endif %}
+            <span class="badge {{ 'badge-green' if b.approved else 'badge-amber' }}">{{ ('معتمد' if ar else 'approved') if b.approved else ('مسودة' if ar else 'draft') }}</span>
+          </span>
+          <span class="muted" dir="ltr">{{ b.item.file_name }} · p.{{ b.item.page }}</span>
+        </div>
+
+        <p class="inbox-question" dir="auto">{{ b.item.stem }}</p>
+
+        {% if b.item.options %}
+        <ol dir="auto" style="margin-block:6px">{% for o in b.item.options %}<li{% if loop.index0 == b.item.right_choice %} style="font-weight:600"{% endif %}>{{ o }}</li>{% endfor %}</ol>
+        {% elif b.item.answer %}<p dir="auto"><strong>{{ 'الإجابة:' if ar else 'Answer:' }}</strong> {{ b.item.answer }}</p>{% endif %}
+
+        {% if b.grading %}
+        <details><summary>{{ 'دليل التصحيح' if ar else 'Grading guide' }}</summary>
+          <p dir="auto"><span class="badge badge-green">{{ 'صحيحة' if ar else 'Correct' }}</span> {{ b.grading.correct }}</p>
+          <p dir="auto"><span class="badge badge-amber">{{ 'صحيحة جزئياً' if ar else 'Partly correct' }}</span> {{ b.grading.partial }}</p>
+          <p dir="auto"><span class="badge badge-red">{{ 'خاطئة' if ar else 'Wrong' }}</span> {{ b.grading.wrong }}</p>
+        </details>
+        {% endif %}
+
+        {% if b.item.kind in ['problem', 'essay'] %}
+        <!-- Weighted rubric editor: only for open-ended question types -->
+        <details style="margin-block:10px">
+          <summary>{{ 'تعديل معايير التصحيح والأوزان' if ar else 'Edit rubric and weights' }}</summary>
+
+          <form method="post"
+                action="{{ u('/rooms/' ~ room.room_id ~ '/bank/' ~ b.item.item_id ~ '/edit') }}"
+                class="form-stack"
+                style="margin-block-start:12px">
+
+            <input type="hidden" name="csrf_token" value="{{ csrf }}">
+            <input type="hidden" name="back" value="{{ '/rooms/' ~ room.room_id ~ '/bank' }}{{ ('?q=' ~ (q | urlencode)) if q else '' }}">
+
+            <label>
+              {{ 'معايير التصحيح (كل معيار في سطر)' if ar else 'Rubric criteria (one criterion per line)' }}
+              <textarea name="rubric" rows="4" dir="auto"
+                        placeholder="{{ 'شرح المفهوم\nذكر مثال\nاستخدام المصطلحات الصحيحة' if ar else 'Explains the concept\nGives an example\nUses correct terminology' }}">{{ (b.item.rubric or []) | join('\n') }}</textarea>
+            </label>
+
+            <label>
+              {{ 'الأوزان (بنفس ترتيب المعايير، مفصولة بفواصل)' if ar else 'Weights (same order as criteria, comma-separated)' }}
+              <input type="text" name="rubric_weights" dir="ltr"
+                     value="{{ (b.item.rubric_weights or []) | join(', ') }}"
+                     placeholder="50, 30, 20">
+            </label>
+
+            <p class="muted">
+              {{ 'مثال: لو عندك ٣ معايير، اكتبي 50, 30, 20. مجموع الأوزان مش لازم يكون 100؛ النظام هيعمل Normalize تلقائياً. وسيتم توزيع الدرجة بالتساوي لو تركتي الأوزان فارغة.' if ar else 'Example: for 3 criteria, enter 50, 30, 20. The total does not have to equal 100; weights are normalized automatically. Leave weights empty to use equal weighting.' }}
+            </p>
+
+            <div>
+              <button class="btn btn-primary btn-sm" type="submit">
+                {{ 'حفظ التعديلات' if ar else 'Save changes' }}
+              </button>
+            </div>
+          </form>
+        </details>
+        {% endif %}
+
+        <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/bank/' ~ b.item.item_id ~ '/approve') }}" class="btn-row">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <input type="hidden" name="approved" value="{{ '0' if b.approved else '1' }}">
+          <input type="hidden" name="back" value="{{ '/rooms/' ~ room.room_id ~ '/bank' }}{{ ('?q=' ~ (q | urlencode)) if q else '' }}">
+          <button class="btn btn-light btn-sm" type="submit">{{ ('إلغاء الاعتماد' if ar else 'Unapprove') if b.approved else ('اعتماد' if ar else 'Approve') }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  {% endif %}
+</section>
+
+<section class="panel panel-pad" style="margin-block-start:16px">
+  <h2 class="panel-title">{{ 'توليد أسئلة من مواد الغرفة' if ar else 'Generate questions from the room material' }}</h2>
+  <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/bank/generate') }}" class="form-stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <label>{{ 'العدد (١–٢٠)' if ar else 'How many (1–20)' }}
+      <input type="number" name="n" min="1" max="20" value="5" style="inline-size:6em"></label>
+    <div class="btn-row">
+      <label><input type="checkbox" name="kinds" value="mcq" checked> {{ 'اختيار من متعدد' if ar else 'Multiple choice' }}</label>
+      <label><input type="checkbox" name="kinds" value="true_false"> {{ 'صح وخطأ' if ar else 'True/False' }}</label>
+      <label><input type="checkbox" name="kinds" value="short"> {{ 'قصير' if ar else 'Short' }}</label>
+      <label><input type="checkbox" name="kinds" value="problem"> {{ 'مسألة' if ar else 'Problem' }}</label>
+      <label><input type="checkbox" name="kinds" value="essay"> {{ 'مقالي' if ar else 'Essay' }}</label>
+    </div>
+    <p class="muted">{{ 'ممكن ياخد دقيقة أو أكتر (كل سؤال بيستدعي الـ LLM).' if ar else 'This can take a minute or more (each question calls the LLM).' }}</p>
+    <div><button class="btn btn-primary" type="submit">{{ 'ولّدي' if ar else 'Generate' }}</button></div>
+  </form>
+  <form method="post" action="{{ u('/rooms/' ~ room.room_id ~ '/bank/demo') }}" style="margin-block-start:12px">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <p class="muted">{{ 'للتجربة بدون ملفات أو LLM: ضيفي ٦ أسئلة تجريبية (عن multimodal وTransformer).' if ar else 'To try the page without files or an LLM: add 6 sample questions (about multimodal AI and Transformers).' }}</p>
+    <button class="btn btn-light" type="submit">{{ 'ضيفي أسئلة تجريبية' if ar else 'Add sample questions' }}</button>
+  </form>
+</section>
+
+<script>
+(function () {
+  var mic = document.getElementById("mic");
+  var input = document.getElementById("bank-q");
+  var status = document.getElementById("mic-status");
+  var label = document.getElementById("mic-label");
+  var form = document.getElementById("bank-form");
+
+  var AR = {{ 'true' if ar else 'false' }};
+  var csrf = {{ csrf | tojson }};
+  var voiceUrl = {{ u('/rooms/' ~ room.room_id ~ '/bank/search/voice') | tojson }};
+
+  if (!mic || !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia ||
+      !window.MediaRecorder) {
+    if (mic) mic.hidden = true;
+    return;
+  }
+
+  mic.hidden = false;
+
+  var recorder = null;
+  var stream = null;
+  var chunks = [];
+  var recording = false;
+
+  function setStatus(message) {
+    status.textContent = message;
+  }
+
+  function resetButton() {
+    recording = false;
+    mic.setAttribute("aria-pressed", "false");
+    label.textContent = AR ? "تكلّمي" : "Speak";
+    if (stream) {
+      stream.getTracks().forEach(function (track) {
+        track.stop();
+      });
+      stream = null;
+    }
+  }
+
+  async function sendRecording(blob) {
+    setStatus(AR ? "جاري تحويل الصوت إلى نص..." : "Transcribing audio...");
+
+    var data = new FormData();
+    data.append("csrf_token", csrf);
+    data.append("language", AR ? "ar" : "en");
+    data.append("audio", blob, "recording.webm");
+
+    try {
+      var response = await fetch(voiceUrl, {
+        method: "POST",
+        body: data,
+        credentials: "same-origin"
+      });
+
+      var result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || "Voice search failed.");
+      }
+
+      var transcript = (result.transcript || "").trim();
+
+      if (!transcript) {
+        throw new Error(
+          AR ? "لم يتم التعرف على كلام في التسجيل." :
+               "No speech was detected."
+        );
+      }
+
+      input.value = transcript;
+      setStatus(
+        AR ? "تم تحويل الصوت. جاري البحث..." :
+             "Transcription complete. Searching..."
+      );
+
+      window.location.href =
+        form.action + "?q=" + encodeURIComponent(transcript);
+
+    } catch (error) {
+      setStatus(
+        (AR ? "حصلت مشكلة: " : "Error: ") + error.message
+      );
+    }
+  }
+
+  mic.addEventListener("click", async function () {
+    if (recording && recorder) {
+      recorder.stop();
+      return;
+    }
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
+
+      chunks = [];
+
+      var options = {};
+      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+        options.mimeType = "audio/webm;codecs=opus";
+      }
+
+      recorder = new MediaRecorder(stream, options);
+
+      recorder.ondataavailable = function (event) {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onstop = function () {
+        var blob = new Blob(chunks, {
+          type: recorder.mimeType || "audio/webm"
+        });
+
+        resetButton();
+
+        if (blob.size === 0) {
+          setStatus(
+            AR ? "التسجيل فارغ." : "The recording is empty."
+          );
+          return;
+        }
+
+        sendRecording(blob);
+      };
+
+      recorder.onerror = function () {
+        resetButton();
+        setStatus(
+          AR ? "حصل خطأ أثناء التسجيل." :
+               "Recording failed."
+        );
+      };
+
+      recorder.start();
+      recording = true;
+
+      mic.setAttribute("aria-pressed", "true");
+      label.textContent = AR ? "إيقاف التسجيل" : "Stop recording";
+      setStatus(
+        AR ? "بسجل صوتك دلوقتي..." : "Recording your voice..."
+      );
+
+    } catch (error) {
+      resetButton();
+      setStatus(
+        (AR ? "مش قادر أوصل للميكروفون: " :
+              "Cannot access microphone: ") + error.message
+      );
+    }
+  });
+})();
+</script>
+{% endblock %}
