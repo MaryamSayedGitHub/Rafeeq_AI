@@ -42,19 +42,21 @@ class Profile(BaseModel):
 
 
 # ---------- quiz items ----------
+
 class QuizItem(BaseModel):
     item_id: str
     topic_id: str
     stem: str
-    options: list[str] = Field(default_factory=list)  # mcq: 4, true_false: 2, other kinds: empty
-    right_choice: int = 0  # index into options (mcq 0..3, true_false 0..1); unused by the other kinds
+    options: list[str] = Field(default_factory=list)
+    right_choice: int = 0
     explanation: str
     file_name: str
     page: int
     source: ItemSource = "generated"
-    kind: ItemKind = "mcq"  # old stored items have no kind: they are mcq
-    answer: str = ""  # the model answer (short / math / problem / essay)
-    rubric: list[str] = Field(default_factory=list)  # what a full-mark answer must contain (essay / problem)
+    kind: ItemKind = "mcq"
+    answer: str = ""
+    rubric: list[str] = Field(default_factory=list)
+    rubric_weights: list[float] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _shape_matches_kind(self) -> "QuizItem":
@@ -63,21 +65,43 @@ class QuizItem(BaseModel):
                 raise ValueError("a QuizItem needs exactly 4 options")
             if not 0 <= self.right_choice <= 3:
                 raise ValueError("right_choice must be 0..3")
+
         elif self.kind == "true_false":
             if len(self.options) != 2:
                 raise ValueError("a true_false item needs exactly 2 options")
             if not 0 <= self.right_choice <= 1:
                 raise ValueError("right_choice must be 0 or 1")
+
         else:
             if self.options:
                 raise ValueError(f"a {self.kind} item has no options")
             if not self.answer.strip():
                 raise ValueError(f"a {self.kind} item needs a model answer")
+
+        # Validate weighted rubric
+        if self.rubric_weights:
+            if len(self.rubric_weights) != len(self.rubric):
+                raise ValueError(
+                    "rubric_weights must have the same length as rubric"
+                )
+
+            if any(
+                weight < 0 or weight > 100
+                for weight in self.rubric_weights
+            ):
+                raise ValueError(
+                    "each rubric weight must be between 0 and 100"
+                )
+
+            if sum(self.rubric_weights) <= 0:
+                raise ValueError("rubric weights total must be greater than zero")
+
         return self
 
     @property
     def is_choice(self) -> bool:
         return self.kind in CHOICE_KINDS
+
 
 
 class QuizCreateRequest(BaseModel):
